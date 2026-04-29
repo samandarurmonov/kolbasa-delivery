@@ -15,8 +15,7 @@ export type AuthUser = {
 type AuthState = {
   user: AuthUser | null;
   loading: boolean;
-  requestOtp: (phone: string) => Promise<{ dev_code?: string }>;
-  verifyOtp: (phone: string, code: string) => Promise<AuthUser>;
+  login: (phone: string, pin: string) => Promise<AuthUser>;
   signOut: () => Promise<void>;
   refreshMe: () => Promise<void>;
 };
@@ -50,19 +49,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     bootstrap();
   }, [bootstrap]);
 
-  const requestOtp = useCallback(async (phone: string) => {
-    const res = await api<{ ok: boolean; dev_code?: string }>("/auth/request-otp", {
+  const login = useCallback(async (phone: string, pin: string) => {
+    const res = await api<{ token: string; user: AuthUser }>("/auth/login", {
       method: "POST",
-      body: { phone },
-      auth: false,
-    });
-    return { dev_code: res.dev_code };
-  }, []);
-
-  const verifyOtp = useCallback(async (phone: string, code: string) => {
-    const res = await api<{ token: string; user: AuthUser }>("/auth/verify-otp", {
-      method: "POST",
-      body: { phone, code },
+      body: { phone, pin },
       auth: false,
     });
     await tokenStore.setToken(res.token);
@@ -87,7 +77,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [signOut]);
 
   return (
-    <AuthContext.Provider value={{ user, loading, requestOtp, verifyOtp, signOut, refreshMe }}>
+    <AuthContext.Provider value={{ user, loading, login, signOut, refreshMe }}>
       {children}
     </AuthContext.Provider>
   );

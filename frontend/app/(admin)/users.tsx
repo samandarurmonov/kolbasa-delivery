@@ -45,8 +45,18 @@ export default function Users() {
   const [showAdd, setShowAdd] = useState(false);
   const [name, setName] = useState("");
   const [digits, setDigits] = useState("");
+  const [pin, setPin] = useState("");
   const [role, setRole] = useState<AppUser["role"]>("agent");
   const [saving, setSaving] = useState(false);
+  const [createdInfo, setCreatedInfo] = useState<{
+    name: string;
+    phone: string;
+    pin: string;
+  } | null>(null);
+
+  const [resetUser, setResetUser] = useState<AppUser | null>(null);
+  const [resetPin, setResetPin] = useState("");
+  const [resetting, setResetting] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -64,6 +74,7 @@ export default function Users() {
   const reset = () => {
     setName("");
     setDigits("");
+    setPin("");
     setRole("agent");
   };
 
@@ -76,12 +87,18 @@ export default function Users() {
       Alert.alert("Xatolik", "Telefon raqamni to'liq kiriting");
       return;
     }
+    if (pin.length < 4 || pin.length > 6) {
+      Alert.alert("Xatolik", "PIN 4-6 raqamdan iborat bo'lishi kerak");
+      return;
+    }
     setSaving(true);
     try {
+      const fullPhone = "+998" + digits;
       await api("/users", {
         method: "POST",
-        body: { name: name.trim(), phone: "+998" + digits, role },
+        body: { name: name.trim(), phone: fullPhone, role, pin },
       });
+      setCreatedInfo({ name: name.trim(), phone: fullPhone, pin });
       reset();
       setShowAdd(false);
       load();
@@ -101,6 +118,31 @@ export default function Users() {
       load();
     } catch (e: any) {
       Alert.alert("Xatolik", e?.message);
+    }
+  };
+
+  const onResetPin = async () => {
+    if (!resetUser) return;
+    if (resetPin.length < 4 || resetPin.length > 6) {
+      Alert.alert("Xatolik", "PIN 4-6 raqamdan iborat bo'lishi kerak");
+      return;
+    }
+    setResetting(true);
+    try {
+      await api(`/users/${resetUser.id}/reset-pin`, {
+        method: "POST",
+        body: { pin: resetPin },
+      });
+      Alert.alert(
+        "Yangi PIN saqlandi",
+        `${resetUser.name} uchun yangi PIN: ${resetPin}\n\nUni xodimga yetkazing.`
+      );
+      setResetUser(null);
+      setResetPin("");
+    } catch (e: any) {
+      Alert.alert("Xatolik", e?.message);
+    } finally {
+      setResetting(false);
     }
   };
 
@@ -157,28 +199,40 @@ export default function Users() {
                 <Text style={styles.blockedBadge}>BLOKLANGAN</Text>
               ) : null}
             </View>
-            {item.role !== "admin" ? (
-              <View style={{ flexDirection: "row", gap: 6 }}>
-                <TouchableOpacity
-                  onPress={() => onToggle(item)}
-                  style={styles.iconBtn}
-                  testID={`toggle-${item.id}`}
-                >
-                  <Ionicons
-                    name={item.is_active ? "lock-closed" : "lock-open"}
-                    size={18}
-                    color={item.is_active ? colors.warning : colors.success}
-                  />
-                </TouchableOpacity>
-                <TouchableOpacity
-                  onPress={() => onDelete(item)}
-                  style={styles.iconBtn}
-                  testID={`delete-${item.id}`}
-                >
-                  <Ionicons name="trash" size={18} color={colors.danger} />
-                </TouchableOpacity>
-              </View>
-            ) : null}
+            <View style={{ flexDirection: "row", gap: 6 }}>
+              <TouchableOpacity
+                onPress={() => {
+                  setResetUser(item);
+                  setResetPin("");
+                }}
+                style={styles.iconBtn}
+                testID={`reset-pin-${item.id}`}
+              >
+                <Ionicons name="key" size={18} color={colors.info} />
+              </TouchableOpacity>
+              {item.role !== "admin" ? (
+                <>
+                  <TouchableOpacity
+                    onPress={() => onToggle(item)}
+                    style={styles.iconBtn}
+                    testID={`toggle-${item.id}`}
+                  >
+                    <Ionicons
+                      name={item.is_active ? "lock-closed" : "lock-open"}
+                      size={18}
+                      color={item.is_active ? colors.warning : colors.success}
+                    />
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={() => onDelete(item)}
+                    style={styles.iconBtn}
+                    testID={`delete-${item.id}`}
+                  >
+                    <Ionicons name="trash" size={18} color={colors.danger} />
+                  </TouchableOpacity>
+                </>
+              ) : null}
+            </View>
           </View>
         )}
         ListEmptyComponent={
@@ -191,7 +245,13 @@ export default function Users() {
         }
       />
 
-      <Modal visible={showAdd} transparent animationType="slide" onRequestClose={() => setShowAdd(false)}>
+      {/* Add user modal */}
+      <Modal
+        visible={showAdd}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowAdd(false)}
+      >
         <Pressable style={styles.modalBackdrop} onPress={() => setShowAdd(false)} />
         <KeyboardAvoidingView
           behavior={Platform.OS === "ios" ? "padding" : undefined}
@@ -216,19 +276,15 @@ export default function Users() {
               placeholder="90 123 45 67"
               testID="new-user-phone"
             />
-            <Text
-              style={{
-                fontSize: 13,
-                fontWeight: "700",
-                color: colors.textSecondary,
-                marginBottom: 6,
-                marginLeft: 4,
-                textTransform: "uppercase",
-                letterSpacing: 0.5,
-              }}
-            >
-              Rol
-            </Text>
+            <Input
+              label="PIN-kod (4-6 raqam)"
+              value={pin}
+              onChangeText={(v) => setPin(v.replace(/\D/g, "").slice(0, 6))}
+              keyboardType="number-pad"
+              placeholder="1234"
+              testID="new-user-pin"
+            />
+            <Text style={styles.miniLabel}>ROL</Text>
             <View style={{ flexDirection: "row", gap: 8, marginBottom: 16 }}>
               {(["agent", "warehouse"] as const).map((r) => (
                 <TouchableOpacity
@@ -257,11 +313,93 @@ export default function Users() {
             <Button
               title="Bekor qilish"
               variant="secondary"
-              onPress={() => setShowAdd(false)}
+              onPress={() => {
+                reset();
+                setShowAdd(false);
+              }}
               style={{ marginTop: 8 }}
             />
           </ScrollView>
         </KeyboardAvoidingView>
+      </Modal>
+
+      {/* "Created" success modal — show PIN once */}
+      <Modal
+        visible={!!createdInfo}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setCreatedInfo(null)}
+      >
+        <View style={styles.centerBackdrop}>
+          <View style={styles.centerCard}>
+            <View style={styles.successIcon}>
+              <Ionicons name="checkmark" size={28} color="#fff" />
+            </View>
+            <Text style={styles.centerTitle}>Hodim yaratildi</Text>
+            <Text style={styles.centerSub}>
+              Quyidagi ma'lumotlarni hodimga yetkazing:
+            </Text>
+            <View style={styles.credBox}>
+              <Text style={styles.credLabel}>ISM</Text>
+              <Text style={styles.credValue}>{createdInfo?.name}</Text>
+              <Text style={[styles.credLabel, { marginTop: 10 }]}>TELEFON</Text>
+              <Text style={styles.credValue}>{createdInfo?.phone}</Text>
+              <Text style={[styles.credLabel, { marginTop: 10 }]}>PIN-KOD</Text>
+              <Text style={[styles.credValue, styles.pinBig]}>{createdInfo?.pin}</Text>
+            </View>
+            <Button
+              title="Tushundim"
+              onPress={() => setCreatedInfo(null)}
+              testID="created-confirm"
+            />
+          </View>
+        </View>
+      </Modal>
+
+      {/* Reset PIN modal */}
+      <Modal
+        visible={!!resetUser}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setResetUser(null)}
+      >
+        <View style={styles.centerBackdrop}>
+          <KeyboardAvoidingView
+            behavior={Platform.OS === "ios" ? "padding" : undefined}
+            style={styles.centerCard}
+          >
+            <View style={[styles.successIcon, { backgroundColor: colors.info }]}>
+              <Ionicons name="key" size={26} color="#fff" />
+            </View>
+            <Text style={styles.centerTitle}>PIN ni tiklash</Text>
+            <Text style={styles.centerSub}>
+              {resetUser?.name} uchun yangi PIN-kod o'rnating
+            </Text>
+            <Input
+              label="Yangi PIN (4-6 raqam)"
+              value={resetPin}
+              onChangeText={(v) => setResetPin(v.replace(/\D/g, "").slice(0, 6))}
+              keyboardType="number-pad"
+              placeholder="1234"
+              testID="reset-pin-input"
+            />
+            <Button
+              title="Saqlash"
+              onPress={onResetPin}
+              loading={resetting}
+              testID="reset-pin-save"
+            />
+            <Button
+              title="Bekor qilish"
+              variant="secondary"
+              onPress={() => {
+                setResetUser(null);
+                setResetPin("");
+              }}
+              style={{ marginTop: 8 }}
+            />
+          </KeyboardAvoidingView>
+        </View>
       </Modal>
     </SafeAreaView>
   );
@@ -345,7 +483,21 @@ const styles = StyleSheet.create({
     alignSelf: "center",
     marginBottom: 12,
   },
-  modalTitle: { fontSize: 20, fontWeight: "900", color: colors.textPrimary, marginBottom: 12 },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: "900",
+    color: colors.textPrimary,
+    marginBottom: 12,
+  },
+  miniLabel: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: colors.textSecondary,
+    marginBottom: 6,
+    marginLeft: 4,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
   roleChip: {
     flex: 1,
     paddingVertical: 12,
@@ -358,4 +510,55 @@ const styles = StyleSheet.create({
   roleChipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
   roleChipText: { fontSize: 13, fontWeight: "800", color: colors.textPrimary },
   roleChipTextActive: { color: "#fff" },
+  centerBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 24,
+  },
+  centerCard: {
+    width: "100%",
+    maxWidth: 420,
+    backgroundColor: colors.surface,
+    borderRadius: radii.xl,
+    padding: 24,
+    alignItems: "center",
+  },
+  successIcon: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: colors.success,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 12,
+  },
+  centerTitle: {
+    fontSize: 20,
+    fontWeight: "900",
+    color: colors.textPrimary,
+  },
+  centerSub: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    marginTop: 6,
+    marginBottom: 16,
+    textAlign: "center",
+  },
+  credBox: {
+    width: "100%",
+    backgroundColor: colors.surfaceMuted,
+    borderRadius: radii.md,
+    padding: 16,
+    marginBottom: 16,
+  },
+  credLabel: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: colors.textSecondary,
+    letterSpacing: 0.6,
+  },
+  credValue: { fontSize: 15, fontWeight: "800", color: colors.textPrimary, marginTop: 2 },
+  pinBig: { fontSize: 26, letterSpacing: 4, color: colors.primary },
 });

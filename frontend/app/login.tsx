@@ -20,29 +20,34 @@ import { Ionicons } from "@expo/vector-icons";
 
 export default function Login() {
   const router = useRouter();
-  const { requestOtp } = useAuth();
-  const [digits, setDigits] = useState(""); // 9 digits after +998
+  const { login } = useAuth();
+  const [digits, setDigits] = useState("");
+  const [pin, setPin] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const fullPhone = "+998" + digits.replace(/\D/g, "").slice(0, 9);
-  const isValid = digits.replace(/\D/g, "").length === 9;
+  const phoneOk = digits.replace(/\D/g, "").length === 9;
+  const pinOk = pin.length >= 4 && pin.length <= 6;
 
   const onSubmit = async () => {
-    if (!isValid) {
+    if (!phoneOk) {
       setError("Telefon raqam to'liq emas");
+      return;
+    }
+    if (!pinOk) {
+      setError("PIN 4-6 raqamdan iborat bo'lishi kerak");
       return;
     }
     setError(null);
     setLoading(true);
     try {
-      const res = await requestOtp(fullPhone);
-      router.push({
-        pathname: "/verify",
-        params: { phone: fullPhone, dev_code: res.dev_code || "" },
-      });
+      const u = await login(fullPhone, pin);
+      if (u.role === "admin") router.replace("/(admin)");
+      else if (u.role === "warehouse") router.replace("/(warehouse)");
+      else router.replace("/(agent)");
     } catch (e: any) {
-      const msg = e?.message || "Xatolik yuz berdi";
+      const msg = e?.message || "Kirishda xatolik";
       setError(msg);
       if (Platform.OS !== "web") Alert.alert("Xatolik", msg);
     } finally {
@@ -83,25 +88,44 @@ export default function Login() {
 
           <View style={styles.card}>
             <Text style={styles.title}>Tizimga kirish</Text>
-            <Text style={styles.subtitle}>Telefon raqamingizni kiriting</Text>
+            <Text style={styles.subtitle}>
+              Telefon raqam va sizga berilgan PIN-kodni kiriting
+            </Text>
 
             <Input
               label="Telefon raqam"
               prefix="+998"
               value={digits}
-              onChangeText={(v) => setDigits(v.replace(/\D/g, "").slice(0, 9))}
+              onChangeText={(v) => {
+                setDigits(v.replace(/\D/g, "").slice(0, 9));
+                setError(null);
+              }}
               keyboardType="phone-pad"
               placeholder="90 123 45 67"
               maxLength={9}
-              error={error || undefined}
               testID="login-phone-input"
             />
 
+            <Input
+              label="PIN-kod"
+              value={pin}
+              onChangeText={(v) => {
+                setPin(v.replace(/\D/g, "").slice(0, 6));
+                setError(null);
+              }}
+              keyboardType="number-pad"
+              secureTextEntry
+              placeholder="••••"
+              maxLength={6}
+              error={error || undefined}
+              testID="login-pin-input"
+            />
+
             <Button
-              title="Kodni olish"
+              title="Kirish"
               onPress={onSubmit}
               loading={loading}
-              disabled={!isValid}
+              disabled={!phoneOk || !pinOk}
               testID="login-submit-button"
             />
 
@@ -110,12 +134,16 @@ export default function Login() {
               onPress={() =>
                 Alert.alert(
                   "Yordam",
-                  "Akkauntingiz bo'lmasa, administratorga murojaat qiling.\nDefault admin: +998940634110"
+                  "PIN-kodni administrator beradi.\nPIN ni unutgan bo'lsangiz, administratorga murojaat qiling."
                 )
               }
             >
-              <Ionicons name="help-circle-outline" size={16} color={colors.textSecondary} />
-              <Text style={styles.helpText}>Akkauntim yo'q</Text>
+              <Ionicons
+                name="help-circle-outline"
+                size={16}
+                color={colors.textSecondary}
+              />
+              <Text style={styles.helpText}>PIN ni unutdim</Text>
             </TouchableOpacity>
           </View>
         </ScrollView>
@@ -189,7 +217,13 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   title: { fontSize: 22, fontWeight: "800", color: colors.textPrimary },
-  subtitle: { fontSize: 14, color: colors.textSecondary, marginTop: 4, marginBottom: 20 },
+  subtitle: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    marginTop: 4,
+    marginBottom: 20,
+    lineHeight: 20,
+  },
   helpRow: {
     flexDirection: "row",
     alignItems: "center",

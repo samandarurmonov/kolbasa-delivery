@@ -7,11 +7,11 @@ load_dotenv(ROOT_DIR / ".env")
 
 import logging
 import uuid
-import random
 import re
 from datetime import datetime, timezone, timedelta
 from typing import List, Optional, Literal
 
+import bcrypt
 import jwt
 from fastapi import FastAPI, APIRouter, HTTPException, Depends, Request
 from starlette.middleware.cors import CORSMiddleware
@@ -34,10 +34,9 @@ db = client[os.environ["DB_NAME"]]
 
 JWT_SECRET = os.environ["JWT_SECRET"]
 JWT_ALGORITHM = "HS256"
-OTP_TTL_MINUTES = int(os.environ.get("OTP_TTL_MINUTES", "5"))
-SMS_PROVIDER = os.environ.get("SMS_PROVIDER", "dev").lower()
 
 PHONE_REGEX = re.compile(r"^\+998\d{9}$")
+PIN_REGEX = re.compile(r"^\d{4,6}$")
 
 
 # ============================================================
@@ -60,12 +59,20 @@ class UserCreate(BaseModel):
     phone: str
     name: str
     role: Role
+    pin: str
 
     @field_validator("phone")
     @classmethod
     def _phone_ok(cls, v: str) -> str:
         if not PHONE_REGEX.match(v):
             raise ValueError("Telefon raqam +998XXXXXXXXX formatida bo'lishi kerak")
+        return v
+
+    @field_validator("pin")
+    @classmethod
+    def _pin_ok(cls, v: str) -> str:
+        if not PIN_REGEX.match(v):
+            raise ValueError("PIN 4-6 raqamdan iborat bo'lishi kerak")
         return v
 
 
@@ -75,8 +82,20 @@ class UserUpdate(BaseModel):
     is_active: Optional[bool] = None
 
 
-class RequestOtpIn(BaseModel):
+class ResetPinIn(BaseModel):
+    pin: str
+
+    @field_validator("pin")
+    @classmethod
+    def _pin_ok(cls, v: str) -> str:
+        if not PIN_REGEX.match(v):
+            raise ValueError("PIN 4-6 raqamdan iborat bo'lishi kerak")
+        return v
+
+
+class LoginIn(BaseModel):
     phone: str
+    pin: str
 
     @field_validator("phone")
     @classmethod
@@ -84,11 +103,6 @@ class RequestOtpIn(BaseModel):
         if not PHONE_REGEX.match(v):
             raise ValueError("Telefon raqam +998XXXXXXXXX formatida bo'lishi kerak")
         return v
-
-
-class VerifyOtpIn(BaseModel):
-    phone: str
-    code: str
 
 
 class Category(BaseModel):
@@ -113,7 +127,7 @@ class OrderCreate(BaseModel):
     store_address: str
     latitude: Optional[float] = None
     longitude: Optional[float] = None
-    photos: List[str] = Field(default_factory=list)  # base64 data URLs
+    photos: List[str] = Field(default_factory=list)
 
     @field_validator("photos")
     @classmethod
@@ -157,6 +171,18 @@ def _now() -> datetime:
     return datetime.now(timezone.utc)
 
 
+def hash_pin(pin: str) -> str:
+    salt = bcrypt.gensalt()
+    return bcrypt.hashpw(pin.encode("utf-8"), salt).decode("utf-8")
+
+
+def verify_pin(pin: str, pin_hash: str) -> bool:
+    try:
+        return bcrypt.checkpw(pin.encode("utf-8"), pin_hash.encode("utf-8"))
+    except Exception:
+        return False
+
+
 def create_access_token(user_id: str, phone: str, role: str) -> str:
     payload = {
         "sub": user_id,
@@ -196,23 +222,13 @@ def require_roles(*roles: str):
 
 
 def serialize_doc(doc: dict) -> dict:
-    """Strip _id and convert datetimes to iso strings."""
     if doc is None:
         return doc
-    out = {k: v for k, v in doc.items() if k != "_id"}
+    out = {k: v for k, v in doc.items() if k not in ("_id", "pin_hash")}
     for k, v in out.items():
         if isinstance(v, datetime):
             out[k] = v.isoformat()
     return out
-
-
-async def send_otp_sms(phone: str, code: str) -> None:
-    """Pluggable SMS sender. DEV mode just logs the code."""
-    if SMS_PROVIDER == "dev":
-        logger.warning(f"[DEV-SMS] OTP for {phone} = {code}")
-        return
-    # Future: eskiz / twilio implementations here.
-    logger.warning(f"[{SMS_PROVIDER}] OTP for {phone} = {code} (provider not implemented)")
 
 
 # ============================================================
@@ -227,65 +243,17 @@ async def root():
     return {"ok": True, "service": "agentlar-api"}
 
 
-# ---------- Auth ----------
-@api.post("/auth/request-otp")
-async def request_otp(payload: RequestOtpIn):
-    user = await db.users.find_one({"phone": payload.phone}, {"_id": 0})
+# ---------- Auth (Phone + PIN) ----------
+@api.post("/auth/login")
+async def login(payload: LoginIn):
+    user = await db.users.find_one({"phone": payload.phone})
     if not user:
-        raise HTTPException(status_code=404, detail="Bu raqam tizimda ro'yxatdan o'tmagan")
+        raise HTTPException(status_code=404, detail="Telefon raqam topilmadi")
     if not user.get("is_active", True):
         raise HTTPException(status_code=403, detail="Akkaunt bloklangan")
-
-    code = f"{random.randint(0, 999999):06d}"
-    await db.otps.update_one(
-        {"phone": payload.phone},
-        {
-            "$set": {
-                "phone": payload.phone,
-                "code": code,
-                "created_at": _now(),
-                "expires_at": _now() + timedelta(minutes=OTP_TTL_MINUTES),
-                "used": False,
-            }
-        },
-        upsert=True,
-    )
-    await send_otp_sms(payload.phone, code)
-
-    response: dict = {
-        "ok": True,
-        "message": "Tasdiqlash kodi yuborildi",
-        "expires_in": OTP_TTL_MINUTES * 60,
-    }
-    if SMS_PROVIDER == "dev":
-        response["dev_code"] = code  # only in DEV mode for easy testing
-    return response
-
-
-@api.post("/auth/verify-otp")
-async def verify_otp(payload: VerifyOtpIn):
-    if not PHONE_REGEX.match(payload.phone):
-        raise HTTPException(status_code=400, detail="Yaroqsiz telefon raqam")
-    rec = await db.otps.find_one({"phone": payload.phone}, {"_id": 0})
-    if not rec:
-        raise HTTPException(status_code=400, detail="Avval kod so'rang")
-    if rec.get("used"):
-        raise HTTPException(status_code=400, detail="Bu kod allaqachon ishlatilgan")
-    expires_at = rec["expires_at"]
-    if isinstance(expires_at, str):
-        expires_at = datetime.fromisoformat(expires_at)
-    if expires_at.tzinfo is None:
-        expires_at = expires_at.replace(tzinfo=timezone.utc)
-    if expires_at < _now():
-        raise HTTPException(status_code=400, detail="Kod muddati tugagan")
-    if rec["code"] != payload.code.strip():
-        raise HTTPException(status_code=400, detail="Kod noto'g'ri")
-
-    user = await db.users.find_one({"phone": payload.phone}, {"_id": 0})
-    if not user:
-        raise HTTPException(status_code=404, detail="Foydalanuvchi topilmadi")
-
-    await db.otps.update_one({"phone": payload.phone}, {"$set": {"used": True}})
+    pin_hash = user.get("pin_hash")
+    if not pin_hash or not verify_pin(payload.pin, pin_hash):
+        raise HTTPException(status_code=401, detail="PIN noto'g'ri")
 
     token = create_access_token(user["id"], user["phone"], user["role"])
     return {"ok": True, "token": token, "user": serialize_doc(user)}
@@ -299,7 +267,7 @@ async def auth_me(user: dict = Depends(get_current_user)):
 # ---------- Users (admin) ----------
 @api.get("/users")
 async def list_users(user: dict = Depends(require_roles("admin"))):
-    cursor = db.users.find({}, {"_id": 0}).sort("created_at", -1)
+    cursor = db.users.find({}, {"_id": 0, "pin_hash": 0}).sort("created_at", -1)
     items = await cursor.to_list(1000)
     return [serialize_doc(u) for u in items]
 
@@ -309,9 +277,11 @@ async def create_user(payload: UserCreate, user: dict = Depends(require_roles("a
     existing = await db.users.find_one({"phone": payload.phone})
     if existing:
         raise HTTPException(status_code=400, detail="Bu raqam allaqachon ro'yxatdan o'tgan")
-    new_user = User(**payload.model_dump())
-    await db.users.insert_one(new_user.model_dump())
-    return serialize_doc(new_user.model_dump())
+    new_user = User(phone=payload.phone, name=payload.name, role=payload.role)
+    doc = new_user.model_dump()
+    doc["pin_hash"] = hash_pin(payload.pin)
+    await db.users.insert_one(doc)
+    return serialize_doc(doc)
 
 
 @api.patch("/users/{user_id}")
@@ -322,8 +292,20 @@ async def update_user(user_id: str, payload: UserUpdate, user: dict = Depends(re
     res = await db.users.update_one({"id": user_id}, {"$set": update})
     if res.matched_count == 0:
         raise HTTPException(status_code=404, detail="Foydalanuvchi topilmadi")
-    fresh = await db.users.find_one({"id": user_id}, {"_id": 0})
+    fresh = await db.users.find_one({"id": user_id}, {"_id": 0, "pin_hash": 0})
     return serialize_doc(fresh)
+
+
+@api.post("/users/{user_id}/reset-pin")
+async def reset_pin(
+    user_id: str, payload: ResetPinIn, user: dict = Depends(require_roles("admin"))
+):
+    res = await db.users.update_one(
+        {"id": user_id}, {"$set": {"pin_hash": hash_pin(payload.pin)}}
+    )
+    if res.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Foydalanuvchi topilmadi")
+    return {"ok": True}
 
 
 @api.delete("/users/{user_id}")
@@ -414,7 +396,6 @@ async def list_orders(
     if user["role"] == "agent":
         q["agent_id"] = user["id"]
     elif user["role"] == "warehouse":
-        # warehouse sees everything
         pass
     elif user["role"] == "admin":
         if agent_id:
@@ -513,22 +494,25 @@ async def startup():
     await db.orders.create_index("status")
     await db.orders.create_index("created_at")
     await db.categories.create_index("name", unique=True)
-    await db.otps.create_index("phone", unique=True)
 
     # Seed admin
     admin_phone = os.environ.get("ADMIN_PHONE", "+998940634110")
     admin_name = os.environ.get("ADMIN_NAME", "Admin")
+    admin_pin = os.environ.get("ADMIN_PIN", "1234")
     existing = await db.users.find_one({"phone": admin_phone})
     if not existing:
         admin = User(phone=admin_phone, name=admin_name, role="admin")
-        await db.users.insert_one(admin.model_dump())
-        logger.info(f"Default admin yaratildi: {admin_phone}")
+        doc = admin.model_dump()
+        doc["pin_hash"] = hash_pin(admin_pin)
+        await db.users.insert_one(doc)
+        logger.info(f"Default admin yaratildi: {admin_phone} (PIN: {admin_pin})")
     else:
-        # Make sure admin is active and has admin role
-        await db.users.update_one(
-            {"phone": admin_phone},
-            {"$set": {"role": "admin", "is_active": True}},
-        )
+        # ensure admin role + active + pin set
+        update = {"role": "admin", "is_active": True}
+        if not existing.get("pin_hash"):
+            update["pin_hash"] = hash_pin(admin_pin)
+            logger.info(f"Admin PIN o'rnatildi: {admin_phone} (PIN: {admin_pin})")
+        await db.users.update_one({"phone": admin_phone}, {"$set": update})
 
     # Seed default categories if empty
     if await db.categories.count_documents({}) == 0:
