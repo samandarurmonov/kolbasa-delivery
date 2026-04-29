@@ -30,6 +30,8 @@ type Product = {
   category_id?: string;
   category_name?: string;
   image?: string;
+  price?: number;
+  weight_grams?: number;
 };
 type Cat = { id: string; name: string };
 
@@ -40,6 +42,8 @@ export default function Products() {
   const [editing, setEditing] = useState<Product | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [name, setName] = useState("");
+  const [price, setPrice] = useState("");
+  const [grams, setGrams] = useState("");
   const [image, setImage] = useState<string | undefined>();
   const [saving, setSaving] = useState(false);
   const [fsImage, setFsImage] = useState<string | undefined>();
@@ -77,6 +81,8 @@ export default function Products() {
   const reset = () => {
     setEditing(null);
     setName("");
+    setPrice("");
+    setGrams("");
     setImage(undefined);
   };
 
@@ -88,6 +94,8 @@ export default function Products() {
   const startEdit = (p: Product) => {
     setEditing(p);
     setName(p.name);
+    setPrice(p.price != null ? String(p.price) : "");
+    setGrams(p.weight_grams != null ? String(p.weight_grams) : "");
     setImage(p.image);
     setShowForm(true);
   };
@@ -138,7 +146,13 @@ export default function Products() {
       return Alert.alert("Xatolik", "Bo'lim topilmadi, admin bilan bog'laning");
     setSaving(true);
     try {
-      const body: any = { name: name.trim(), category_id: cat.id, image };
+      const body: any = {
+        name: name.trim(),
+        category_id: cat.id,
+        image,
+        price: price.trim() ? parseFloat(price.replace(/[^\d.]/g, "")) : null,
+        weight_grams: grams.trim() ? parseFloat(grams.replace(/[^\d.]/g, "")) : null,
+      };
       if (editing) {
         await api(`/products/${editing.id}`, { method: "PATCH", body });
       } else {
@@ -249,6 +263,22 @@ export default function Products() {
               <Text style={styles.gridName} numberOfLines={2}>
                 {item.name}
               </Text>
+              {item.price != null || item.weight_grams != null ? (
+                <View style={styles.priceRow}>
+                  {item.price != null ? (
+                    <Text style={styles.priceText}>
+                      {item.price.toLocaleString("ru-RU")} so'm
+                    </Text>
+                  ) : null}
+                  {item.weight_grams != null ? (
+                    <Text style={styles.gramsText}>
+                      {item.weight_grams >= 1000
+                        ? `${item.weight_grams / 1000} kg`
+                        : `${item.weight_grams} g`}
+                    </Text>
+                  ) : null}
+                </View>
+              ) : null}
               <View style={styles.gridActions}>
                 <TouchableOpacity onPress={() => startEdit(item)} style={styles.gridActionBtn}>
                   <Ionicons name="create" size={16} color={colors.info} />
@@ -311,6 +341,28 @@ export default function Products() {
               placeholder="Doktorskaya kolbasa"
               testID="product-name-field"
             />
+            <View style={{ flexDirection: "row", gap: 10 }}>
+              <View style={{ flex: 1 }}>
+                <Input
+                  label="Narxi (so'm)"
+                  value={price}
+                  onChangeText={(v) => setPrice(v.replace(/[^\d]/g, ""))}
+                  keyboardType="numeric"
+                  placeholder="50000"
+                  testID="product-price-field"
+                />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Input
+                  label="Vazni (gram)"
+                  value={grams}
+                  onChangeText={(v) => setGrams(v.replace(/[^\d]/g, ""))}
+                  keyboardType="numeric"
+                  placeholder="500"
+                  testID="product-grams-field"
+                />
+              </View>
+            </View>
             <View
               style={{
                 backgroundColor: colors.surfaceMuted,
@@ -423,6 +475,27 @@ const styles = StyleSheet.create({
   },
   gridBody: { padding: 10 },
   gridName: { fontSize: 14, fontWeight: "800", color: colors.textPrimary, minHeight: 36 },
+  priceRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    flexWrap: "wrap",
+    gap: 6,
+    marginTop: 4,
+  },
+  priceText: {
+    fontSize: 13,
+    fontWeight: "900",
+    color: colors.primary,
+  },
+  gramsText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: colors.textSecondary,
+    backgroundColor: colors.surfaceMuted,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 999,
+  },
   gridActions: { flexDirection: "row", gap: 6, marginTop: 8 },
   gridActionBtn: {
     width: 32,

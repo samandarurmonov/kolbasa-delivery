@@ -135,6 +135,8 @@ class Product(BaseModel):
     category_id: Optional[str] = None
     category_name: Optional[str] = None
     image: Optional[str] = None  # base64 data URL
+    price: Optional[float] = None
+    weight_grams: Optional[float] = None
     is_active: bool = True
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
@@ -143,12 +145,16 @@ class ProductCreate(BaseModel):
     name: str
     category_id: Optional[str] = None
     image: Optional[str] = None
+    price: Optional[float] = None
+    weight_grams: Optional[float] = None
 
 
 class ProductUpdate(BaseModel):
     name: Optional[str] = None
     category_id: Optional[str] = None
     image: Optional[str] = None
+    price: Optional[float] = None
+    weight_grams: Optional[float] = None
     is_active: Optional[bool] = None
 
 
@@ -452,6 +458,8 @@ async def create_product(payload: ProductCreate, user: dict = Depends(require_ro
         category_id=payload.category_id,
         category_name=cat_name,
         image=payload.image,
+        price=payload.price,
+        weight_grams=payload.weight_grams,
     )
     await db.products.insert_one(p.model_dump())
     return serialize_doc(p.model_dump())

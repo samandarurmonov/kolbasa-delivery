@@ -32,6 +32,8 @@ type Product = {
   category_id?: string;
   category_name?: string;
   image?: string;
+  price?: number;
+  weight_grams?: number;
 };
 
 export default function NewOrder() {
@@ -537,11 +539,31 @@ export default function NewOrder() {
                     onPress={() => onPickProduct(p)}
                   >
                     <Text style={styles.catItemText}>{p.name}</Text>
-                    {p.category_name ? (
-                      <Text style={{ fontSize: 12, color: colors.textSecondary }}>
-                        {p.category_name}
-                      </Text>
-                    ) : null}
+                    <View style={{ flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 6, marginTop: 2 }}>
+                      {p.price != null ? (
+                        <Text style={{ fontSize: 13, fontWeight: "900", color: colors.primary }}>
+                          {p.price.toLocaleString("ru-RU")} so'm
+                        </Text>
+                      ) : null}
+                      {p.weight_grams != null ? (
+                        <Text style={{
+                          fontSize: 11,
+                          fontWeight: "700",
+                          color: colors.textSecondary,
+                          backgroundColor: colors.surfaceMuted,
+                          paddingHorizontal: 6,
+                          paddingVertical: 1,
+                          borderRadius: 999,
+                        }}>
+                          {p.weight_grams >= 1000 ? `${p.weight_grams / 1000} kg` : `${p.weight_grams} g`}
+                        </Text>
+                      ) : null}
+                      {p.category_name ? (
+                        <Text style={{ fontSize: 11, color: colors.textMuted }}>
+                          · {p.category_name}
+                        </Text>
+                      ) : null}
+                    </View>
                   </TouchableOpacity>
                   {selectedProduct?.id === p.id ? (
                     <Ionicons name="checkmark-circle" size={20} color={colors.primary} />
