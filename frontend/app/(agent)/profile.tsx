@@ -108,36 +108,48 @@ export default function Profile() {
       </View>
 
       <View style={{ paddingHorizontal: 16, marginTop: 16, gap: 8 }}>
-        <TouchableOpacity
-          style={styles.actionRow}
-          onPress={() => {
-            setName(user?.name || "");
-            setEditName(true);
-          }}
-          testID="edit-name-button"
-        >
-          <View style={[styles.actionIcon, { backgroundColor: "#DBEAFE" }]}>
-            <Ionicons name="create" size={18} color="#1D4ED8" />
-          </View>
-          <Text style={styles.actionText}>Ismni o'zgartirish</Text>
-          <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
-        </TouchableOpacity>
+        {user?.role === "admin" ? (
+          <>
+            <TouchableOpacity
+              style={styles.actionRow}
+              onPress={() => {
+                setName(user?.name || "");
+                setEditName(true);
+              }}
+              testID="edit-name-button"
+            >
+              <View style={[styles.actionIcon, { backgroundColor: "#DBEAFE" }]}>
+                <Ionicons name="create" size={18} color="#1D4ED8" />
+              </View>
+              <Text style={styles.actionText}>Ismni o'zgartirish</Text>
+              <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+            </TouchableOpacity>
 
-        <TouchableOpacity
-          style={styles.actionRow}
-          onPress={() => {
-            setPin("");
-            setPinConfirm("");
-            setEditPin(true);
-          }}
-          testID="change-pin-button"
-        >
-          <View style={[styles.actionIcon, { backgroundColor: "#FEF3C7" }]}>
-            <Ionicons name="key" size={18} color="#B45309" />
+            <TouchableOpacity
+              style={styles.actionRow}
+              onPress={() => {
+                setPin("");
+                setPinConfirm("");
+                setEditPin(true);
+              }}
+              testID="change-pin-button"
+            >
+              <View style={[styles.actionIcon, { backgroundColor: "#FEF3C7" }]}>
+                <Ionicons name="key" size={18} color="#B45309" />
+              </View>
+              <Text style={styles.actionText}>PIN-kodni o'zgartirish</Text>
+              <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+            </TouchableOpacity>
+          </>
+        ) : (
+          <View style={styles.infoBox}>
+            <Ionicons name="information-circle" size={18} color={colors.info} />
+            <Text style={styles.infoText}>
+              Ism, telefon va PIN-kodni faqat administrator o'zgartira oladi.
+              O'zgartirish kerak bo'lsa, admin bilan bog'laning.
+            </Text>
           </View>
-          <Text style={styles.actionText}>PIN-kodni o'zgartirish</Text>
-          <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
-        </TouchableOpacity>
+        )}
 
         <TouchableOpacity style={styles.logoutBtn} onPress={onLogout} testID="logout-button">
           <Ionicons name="log-out-outline" size={18} color={colors.danger} />
@@ -294,4 +306,19 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   modalTitle: { fontSize: 20, fontWeight: "900", color: colors.textPrimary, marginBottom: 12 },
+  infoBox: {
+    flexDirection: "row",
+    gap: 10,
+    padding: 14,
+    borderRadius: radii.md,
+    backgroundColor: "#EFF6FF",
+    borderWidth: 1,
+    borderColor: "#BFDBFE",
+  },
+  infoText: {
+    flex: 1,
+    fontSize: 13,
+    color: colors.textSecondary,
+    lineHeight: 19,
+  },
 });

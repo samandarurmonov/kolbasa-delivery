@@ -80,6 +80,16 @@ class UserUpdate(BaseModel):
     name: Optional[str] = None
     role: Optional[Role] = None
     is_active: Optional[bool] = None
+    phone: Optional[str] = None
+
+    @field_validator("phone")
+    @classmethod
+    def _phone_ok(cls, v):
+        if v is None:
+            return v
+        if not PHONE_REGEX.match(v):
+            raise ValueError("Telefon raqam +998XXXXXXXXX formatida bo'lishi kerak")
+        return v
 
 
 class ProfileUpdate(BaseModel):
@@ -344,6 +354,13 @@ async def auth_me(user: dict = Depends(get_current_user)):
 
 @api.patch("/auth/me")
 async def update_profile(payload: ProfileUpdate, user: dict = Depends(get_current_user)):
+    # Only admins can self-edit profile (name/PIN). Agents and warehouse staff
+    # must ask an admin to change their phone/PIN/name.
+    if user["role"] != "admin":
+        raise HTTPException(
+            status_code=403,
+            detail="Faqat administrator profilingizni o'zgartira oladi. Iltimos, admin bilan bog'laning.",
+        )
     update: dict = {}
     if payload.name is not None and payload.name.strip():
         update["name"] = payload.name.strip()
@@ -381,6 +398,13 @@ async def update_user(user_id: str, payload: UserUpdate, user: dict = Depends(re
     update = {k: v for k, v in payload.model_dump().items() if v is not None}
     if not update:
         raise HTTPException(status_code=400, detail="Yangilash uchun maydon yo'q")
+    if "phone" in update:
+        # ensure no duplicate
+        clash = await db.users.find_one(
+            {"phone": update["phone"], "id": {"$ne": user_id}}, {"_id": 0}
+        )
+        if clash:
+            raise HTTPException(status_code=400, detail="Bu telefon raqam allaqachon ishlatilgan")
     res = await db.users.update_one({"id": user_id}, {"$set": update})
     if res.matched_count == 0:
         raise HTTPException(status_code=404, detail="Foydalanuvchi topilmadi")

@@ -46,7 +46,8 @@ export default function NewOrder() {
   const [selectedCat, setSelectedCat] = useState<Cat | null>(null);
   const [customCat, setCustomCat] = useState("");
   const [productName, setProductName] = useState("");
-  const [quantity, setQuantity] = useState("");
+  const [quantityValue, setQuantityValue] = useState("");
+  const [quantityUnit, setQuantityUnit] = useState<"dona" | "kg" | "g">("kg");
   const [note, setNote] = useState("");
   const [clientPhoneDigits, setClientPhoneDigits] = useState("");
   const [clientName, setClientName] = useState("");
