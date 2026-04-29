@@ -20,6 +20,8 @@ import * as Location from "expo-location";
 import * as ImagePicker from "expo-image-picker";
 import { Input } from "../../src/components/Input";
 import { Button } from "../../src/components/Button";
+import { FullscreenImage } from "../../src/components/FullscreenImage";
+import { SECTIONS } from "../../src/sections";
 import { api } from "../../src/api";
 import { colors, radii, shadows } from "../../src/theme";
 
@@ -87,6 +89,10 @@ export default function NewOrder() {
     }
     setProductModal(false);
   };
+
+  const filteredProducts = products.filter(
+    (p) => (p.category_name || "") === productSection
+  );
 
   const detectLocation = async () => {
     setLocating(true);
@@ -196,7 +202,9 @@ export default function NewOrder() {
           category_name: selectedCat?.name,
           custom_category: customCat.trim() || null,
           product_name: productName.trim(),
-          quantity: quantity.trim() || null,
+          quantity: quantityValue.trim()
+            ? `${quantityValue.trim()} ${quantityUnit}`
+            : null,
           note: note.trim() || null,
           client_phone: "+998" + clientPhoneDigits,
           client_name: clientName.trim() || null,
@@ -287,12 +295,41 @@ export default function NewOrder() {
               placeholder="Masalan, Doktorskaya kolbasa"
               testID="product-name-input"
             />
-            <Input
-              label="Miqdor"
-              value={quantity}
-              onChangeText={setQuantity}
-              placeholder="5 kg / 10 dona"
-            />
+            <Text style={styles.miniLabel}>MIQDOR / VAZN</Text>
+            <View style={{ flexDirection: "row", gap: 8, marginBottom: 14 }}>
+              <View style={{ flex: 1 }}>
+                <Input
+                  label=""
+                  value={quantityValue}
+                  onChangeText={setQuantityValue}
+                  keyboardType="numeric"
+                  placeholder="0"
+                  testID="quantity-value-input"
+                />
+              </View>
+              <View style={{ flexDirection: "row", gap: 4 }}>
+                {(["dona", "kg", "g"] as const).map((u) => (
+                  <TouchableOpacity
+                    key={u}
+                    onPress={() => setQuantityUnit(u)}
+                    style={[
+                      styles.unitChip,
+                      quantityUnit === u && styles.unitChipActive,
+                    ]}
+                    testID={`unit-${u}`}
+                  >
+                    <Text
+                      style={[
+                        styles.unitText,
+                        quantityUnit === u && styles.unitTextActive,
+                      ]}
+                    >
+                      {u}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
             <Input
               label="Qo'shimcha izoh"
               value={note}
@@ -439,42 +476,85 @@ export default function NewOrder() {
         onRequestClose={() => setProductModal(false)}
       >
         <Pressable style={styles.modalBackdrop} onPress={() => setProductModal(false)} />
-        <View style={styles.modalSheet}>
+        <View style={[styles.modalSheet, { maxHeight: "85%" }]}>
           <View style={styles.modalHandle} />
-          <Text style={styles.modalTitle}>Mahsulot tanlash</Text>
+          <Text style={styles.modalTitle}>Katalogdan tanlang</Text>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{ gap: 8, paddingVertical: 4 }}
+            style={{ marginBottom: 8, maxHeight: 50 }}
+          >
+            {SECTIONS.map((s) => (
+              <TouchableOpacity
+                key={s.key}
+                onPress={() => setProductSection(s.key)}
+                style={[
+                  styles.modSecTab,
+                  productSection === s.key && styles.modSecTabActive,
+                ]}
+                testID={`agent-section-${s.key}`}
+              >
+                <Text
+                  style={[
+                    styles.modSecText,
+                    productSection === s.key && styles.modSecTextActive,
+                  ]}
+                >
+                  {s.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
           <ScrollView style={{ maxHeight: 460 }}>
-            {products.length === 0 ? (
+            {filteredProducts.length === 0 ? (
               <View style={{ paddingVertical: 24, alignItems: "center" }}>
                 <Text style={{ color: colors.textSecondary, textAlign: "center" }}>
-                  Katalog bo'sh. Mahsulot nomini qo'lda yozing yoki adminga murojaat qiling.
+                  Bu bo'limda mahsulot yo'q. Boshqa bo'limni tanlang yoki nomni qo'lda yozing.
                 </Text>
               </View>
             ) : (
-              products.map((p) => (
-                <TouchableOpacity
-                  key={p.id}
-                  style={styles.prodItem}
-                  onPress={() => onPickProduct(p)}
-                >
-                  {p.image ? (
-                    <Image source={{ uri: p.image }} style={styles.prodImg} />
-                  ) : (
-                    <View style={[styles.prodImg, { alignItems: "center", justifyContent: "center" }]}>
-                      <Ionicons name="cube" size={20} color={colors.textMuted} />
-                    </View>
-                  )}
-                  <View style={{ flex: 1 }}>
+              filteredProducts.map((p) => (
+                <View key={p.id} style={styles.prodItem}>
+                  <TouchableOpacity
+                    onPress={() => p.image && setFsProductImage(p.image)}
+                  >
+                    {p.image ? (
+                      <Image source={{ uri: p.image }} style={styles.prodImg} />
+                    ) : (
+                      <View
+                        style={[
+                          styles.prodImg,
+                          { alignItems: "center", justifyContent: "center" },
+                        ]}
+                      >
+                        <Ionicons name="cube" size={20} color={colors.textMuted} />
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={{ flex: 1 }}
+                    onPress={() => onPickProduct(p)}
+                  >
                     <Text style={styles.catItemText}>{p.name}</Text>
                     {p.category_name ? (
                       <Text style={{ fontSize: 12, color: colors.textSecondary }}>
                         {p.category_name}
                       </Text>
                     ) : null}
-                  </View>
+                  </TouchableOpacity>
                   {selectedProduct?.id === p.id ? (
                     <Ionicons name="checkmark-circle" size={20} color={colors.primary} />
-                  ) : null}
-                </TouchableOpacity>
+                  ) : (
+                    <TouchableOpacity onPress={() => onPickProduct(p)}>
+                      <Ionicons
+                        name="add-circle"
+                        size={26}
+                        color={colors.primary}
+                      />
+                    </TouchableOpacity>
+                  )}
+                </View>
               ))
             )}
           </ScrollView>
@@ -486,6 +566,12 @@ export default function NewOrder() {
           />
         </View>
       </Modal>
+
+      <FullscreenImage
+        uri={fsProductImage}
+        visible={!!fsProductImage}
+        onClose={() => setFsProductImage(undefined)}
+      />
     </SafeAreaView>
   );
 }
@@ -643,4 +729,29 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     backgroundColor: colors.surfaceMuted,
   },
+  unitChip: {
+    minHeight: 54,
+    minWidth: 50,
+    paddingHorizontal: 12,
+    borderRadius: radii.md,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  unitChipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
+  unitText: { fontSize: 13, fontWeight: "800", color: colors.textPrimary },
+  unitTextActive: { color: "#fff" },
+  modSecTab: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: radii.pill,
+    backgroundColor: colors.surfaceMuted,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  modSecTabActive: { backgroundColor: colors.primary, borderColor: colors.primary },
+  modSecText: { fontSize: 12, fontWeight: "800", color: colors.textSecondary },
+  modSecTextActive: { color: "#fff" },
 });

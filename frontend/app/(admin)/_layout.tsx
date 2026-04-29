@@ -50,23 +50,15 @@ export default function AdminLayout() {
         }}
       />
       <Tabs.Screen
-        name="categories"
-        options={{
-          title: "Kategoriya",
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="pricetags" size={size} color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
         name="products"
         options={{
-          title: "Mahsulot",
+          title: "Katalog",
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="cube" size={size} color={color} />
           ),
         }}
       />
+      <Tabs.Screen name="categories" options={{ href: null }} />
       <Tabs.Screen
         name="profile"
         options={{

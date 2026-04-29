@@ -789,17 +789,30 @@ async def startup():
 
     if await db.categories.count_documents({}) == 0:
         defaults = [
-            "Pishirilgan kolbasa",
-            "Yarim pishirilgan kolbasa",
-            "Quritilgan kolbasa",
-            "Sosiska",
-            "Dudlangan go'sht",
-            "Konserva",
+            "Kopchenaya",
+            "Varennaya",
+            "Indeyka",
+            "Sir mahsulotlari",
+            "Boshqa mahsulotlar",
         ]
         for name in defaults:
             cat = Category(name=name)
             await db.categories.insert_one(cat.model_dump())
         logger.info("Standart kategoriyalar yuklandi")
+    else:
+        # Ensure the 5 fixed sections exist
+        fixed = [
+            "Kopchenaya",
+            "Varennaya",
+            "Indeyka",
+            "Sir mahsulotlari",
+            "Boshqa mahsulotlar",
+        ]
+        for name in fixed:
+            existing_cat = await db.categories.find_one({"name": name})
+            if not existing_cat:
+                cat = Category(name=name)
+                await db.categories.insert_one(cat.model_dump())
 
 
 @app.on_event("shutdown")

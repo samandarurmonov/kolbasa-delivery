@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useState, useMemo, useEffect } from "react";
 import {
   View,
   Text,
@@ -20,6 +20,8 @@ import * as ImagePicker from "expo-image-picker";
 import { api } from "../../src/api";
 import { Input } from "../../src/components/Input";
 import { Button } from "../../src/components/Button";
+import { FullscreenImage } from "../../src/components/FullscreenImage";
+import { SECTIONS } from "../../src/sections";
 import { colors, radii, shadows } from "../../src/theme";
 
 type Product = {
@@ -34,13 +36,13 @@ type Cat = { id: string; name: string };
 export default function Products() {
   const [items, setItems] = useState<Product[]>([]);
   const [cats, setCats] = useState<Cat[]>([]);
+  const [section, setSection] = useState(SECTIONS[0].key);
   const [editing, setEditing] = useState<Product | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [name, setName] = useState("");
-  const [catId, setCatId] = useState<string | undefined>();
-  const [showCatPicker, setShowCatPicker] = useState(false);
   const [image, setImage] = useState<string | undefined>();
   const [saving, setSaving] = useState(false);
+  const [fsImage, setFsImage] = useState<string | undefined>();
 
   const load = useCallback(async () => {
     try {
@@ -59,10 +61,22 @@ export default function Products() {
     }, [load])
   );
 
+  const filtered = useMemo(
+    () => items.filter((p) => (p.category_name || "") === section),
+    [items, section]
+  );
+
+  const sectionCounts = useMemo(() => {
+    const m: Record<string, number> = {};
+    SECTIONS.forEach((s) => {
+      m[s.key] = items.filter((p) => p.category_name === s.key).length;
+    });
+    return m;
+  }, [items]);
+
   const reset = () => {
     setEditing(null);
     setName("");
-    setCatId(undefined);
     setImage(undefined);
   };
 
@@ -74,12 +88,11 @@ export default function Products() {
   const startEdit = (p: Product) => {
     setEditing(p);
     setName(p.name);
-    setCatId(p.category_id);
     setImage(p.image);
     setShowForm(true);
   };
 
-  const pickImage = async () => {
+  const pickImage = () => {
     Alert.alert("Rasm tanlash", "Manbani tanlang", [
       {
         text: "Kamera",
@@ -120,9 +133,12 @@ export default function Products() {
 
   const onSave = async () => {
     if (!name.trim()) return Alert.alert("Xatolik", "Mahsulot nomini kiriting");
+    const cat = cats.find((c) => c.name === section);
+    if (!cat)
+      return Alert.alert("Xatolik", "Bo'lim topilmadi, admin bilan bog'laning");
     setSaving(true);
     try {
-      const body: any = { name: name.trim(), category_id: catId, image };
+      const body: any = { name: name.trim(), category_id: cat.id, image };
       if (editing) {
         await api(`/products/${editing.id}`, { method: "PATCH", body });
       } else {
@@ -156,14 +172,12 @@ export default function Products() {
     ]);
   };
 
-  const selectedCat = cats.find((c) => c.id === catId);
-
   return (
     <SafeAreaView style={styles.safe} edges={["top"]}>
       <View style={styles.header}>
         <View>
           <Text style={styles.titleSmall}>Katalog</Text>
-          <Text style={styles.title}>{items.length} mahsulot</Text>
+          <Text style={styles.title}>{filtered.length} mahsulot</Text>
         </View>
         <TouchableOpacity style={styles.addBtn} onPress={startCreate} testID="add-product-button">
           <Ionicons name="add" size={22} color="#fff" />
@@ -171,55 +185,104 @@ export default function Products() {
         </TouchableOpacity>
       </View>
 
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={styles.tabsScroll}
+        contentContainerStyle={styles.tabsRow}
+      >
+        {SECTIONS.map((s) => (
+          <TouchableOpacity
+            key={s.key}
+            onPress={() => setSection(s.key)}
+            style={[styles.tab, section === s.key && styles.tabActive]}
+            testID={`section-${s.key}`}
+          >
+            <Ionicons
+              name={s.icon as any}
+              size={14}
+              color={section === s.key ? "#fff" : colors.textSecondary}
+            />
+            <Text style={[styles.tabText, section === s.key && styles.tabTextActive]}>
+              {s.label}
+            </Text>
+            <View style={[styles.tabCount, section === s.key && styles.tabCountActive]}>
+              <Text
+                style={[
+                  styles.tabCountText,
+                  section === s.key && { color: colors.primary },
+                ]}
+              >
+                {sectionCounts[s.key] || 0}
+              </Text>
+            </View>
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
+
       <FlatList
-        data={items}
+        data={filtered}
         keyExtractor={(p) => p.id}
         contentContainerStyle={{ padding: 16, paddingBottom: 40 }}
+        numColumns={2}
+        columnWrapperStyle={{ gap: 12 }}
         renderItem={({ item }) => (
-          <View style={[styles.card, shadows.card]}>
-            <TouchableOpacity onPress={() => startEdit(item)} style={styles.cardLeft}>
+          <View style={[styles.gridCard, shadows.card]}>
+            <TouchableOpacity
+              activeOpacity={0.85}
+              onPress={() => item.image && setFsImage(item.image)}
+            >
               {item.image ? (
-                <Image source={{ uri: item.image }} style={styles.thumb} />
+                <Image source={{ uri: item.image }} style={styles.gridImg} />
               ) : (
-                <View style={[styles.thumb, styles.thumbPh]}>
-                  <Ionicons name="image" size={24} color={colors.textMuted} />
+                <View style={[styles.gridImg, styles.imgPh]}>
+                  <Ionicons name="image" size={32} color={colors.textMuted} />
                 </View>
               )}
-              <View style={{ flex: 1 }}>
-                <Text style={styles.pName}>{item.name}</Text>
-                {item.category_name ? (
-                  <View style={styles.catBadge}>
-                    <Text style={styles.catBadgeText}>{item.category_name}</Text>
-                  </View>
-                ) : null}
+              {item.image ? (
+                <View style={styles.expandIcon}>
+                  <Ionicons name="expand" size={14} color="#fff" />
+                </View>
+              ) : null}
+            </TouchableOpacity>
+            <View style={styles.gridBody}>
+              <Text style={styles.gridName} numberOfLines={2}>
+                {item.name}
+              </Text>
+              <View style={styles.gridActions}>
+                <TouchableOpacity onPress={() => startEdit(item)} style={styles.gridActionBtn}>
+                  <Ionicons name="create" size={16} color={colors.info} />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => onDelete(item)}
+                  style={[styles.gridActionBtn, { backgroundColor: "#FEF2F2" }]}
+                >
+                  <Ionicons name="trash" size={16} color={colors.danger} />
+                </TouchableOpacity>
               </View>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={() => onDelete(item)} style={styles.delBtn}>
-              <Ionicons name="trash" size={18} color={colors.danger} />
-            </TouchableOpacity>
+            </View>
           </View>
         )}
         ListEmptyComponent={
-          <View style={{ alignItems: "center", marginTop: 60 }}>
+          <View style={{ alignItems: "center", marginTop: 40, paddingHorizontal: 24 }}>
             <Ionicons name="cube-outline" size={56} color={colors.textMuted} />
             <Text style={{ color: colors.textSecondary, marginTop: 12, fontWeight: "700" }}>
-              Hali mahsulot yo'q
+              Bu bo'limda mahsulot yo'q
             </Text>
             <Text
               style={{
                 color: colors.textMuted,
                 marginTop: 6,
                 textAlign: "center",
-                paddingHorizontal: 30,
               }}
             >
-              Birinchi mahsulotni rasmi bilan qo'shing — agentlar uni tezda tanlay olishadi
+              "Qo'shish" tugmasini bosib birinchi mahsulot qo'shing
             </Text>
           </View>
         }
       />
 
-      {/* Form modal */}
+      {/* Add/Edit modal */}
       <Modal visible={showForm} transparent animationType="slide" onRequestClose={() => setShowForm(false)}>
         <Pressable style={styles.modalBackdrop} onPress={() => setShowForm(false)} />
         <KeyboardAvoidingView
@@ -227,9 +290,11 @@ export default function Products() {
           style={styles.modalSheet}
         >
           <View style={styles.modalHandle} />
-          <Text style={styles.modalTitle}>{editing ? "Mahsulotni tahrirlash" : "Yangi mahsulot"}</Text>
+          <Text style={styles.modalTitle}>
+            {editing ? "Mahsulotni tahrirlash" : `Yangi mahsulot · ${section}`}
+          </Text>
           <ScrollView keyboardShouldPersistTaps="handled" style={{ maxHeight: 520 }}>
-            <TouchableOpacity style={styles.imagePicker} onPress={pickImage}>
+            <TouchableOpacity style={styles.imagePicker} onPress={pickImage} testID="image-picker">
               {image ? (
                 <Image source={{ uri: image }} style={styles.imagePreview} />
               ) : (
@@ -246,21 +311,22 @@ export default function Products() {
               placeholder="Doktorskaya kolbasa"
               testID="product-name-field"
             />
-            <Text style={styles.miniLabel}>KATEGORIYA</Text>
-            <TouchableOpacity
-              style={styles.selectBox}
-              onPress={() => setShowCatPicker(true)}
+            <View
+              style={{
+                backgroundColor: colors.surfaceMuted,
+                padding: 12,
+                borderRadius: radii.md,
+                marginBottom: 14,
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 8,
+              }}
             >
-              <Text
-                style={[
-                  styles.selectText,
-                  !selectedCat && { color: colors.textMuted },
-                ]}
-              >
-                {selectedCat ? selectedCat.name : "Tanlang"}
+              <Ionicons name="folder" size={16} color={colors.textSecondary} />
+              <Text style={{ color: colors.textSecondary, fontSize: 13, fontWeight: "700" }}>
+                Bo'lim: {section}
               </Text>
-              <Ionicons name="chevron-down" size={20} color={colors.textSecondary} />
-            </TouchableOpacity>
+            </View>
             <Button
               title="Saqlash"
               onPress={onSave}
@@ -277,40 +343,7 @@ export default function Products() {
         </KeyboardAvoidingView>
       </Modal>
 
-      {/* Category picker */}
-      <Modal visible={showCatPicker} transparent animationType="slide" onRequestClose={() => setShowCatPicker(false)}>
-        <Pressable style={styles.modalBackdrop} onPress={() => setShowCatPicker(false)} />
-        <View style={styles.modalSheet}>
-          <View style={styles.modalHandle} />
-          <Text style={styles.modalTitle}>Kategoriya</Text>
-          <ScrollView style={{ maxHeight: 360 }}>
-            <TouchableOpacity
-              style={styles.catItem}
-              onPress={() => {
-                setCatId(undefined);
-                setShowCatPicker(false);
-              }}
-            >
-              <Text style={[styles.catItemText, { color: colors.textMuted }]}>— Yo'q —</Text>
-            </TouchableOpacity>
-            {cats.map((c) => (
-              <TouchableOpacity
-                key={c.id}
-                style={styles.catItem}
-                onPress={() => {
-                  setCatId(c.id);
-                  setShowCatPicker(false);
-                }}
-              >
-                <Text style={styles.catItemText}>{c.name}</Text>
-                {catId === c.id ? (
-                  <Ionicons name="checkmark-circle" size={20} color={colors.primary} />
-                ) : null}
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-        </View>
-      </Modal>
+      <FullscreenImage uri={fsImage} visible={!!fsImage} onClose={() => setFsImage(undefined)} />
     </SafeAreaView>
   );
 }
@@ -320,7 +353,7 @@ const styles = StyleSheet.create({
   header: {
     paddingHorizontal: 20,
     paddingTop: 8,
-    paddingBottom: 12,
+    paddingBottom: 8,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
@@ -337,35 +370,65 @@ const styles = StyleSheet.create({
     borderRadius: radii.md,
   },
   addBtnText: { color: "#fff", fontWeight: "800", fontSize: 13 },
-  card: {
+  tabsScroll: { maxHeight: 50, marginBottom: 4 },
+  tabsRow: { paddingHorizontal: 16, gap: 8, alignItems: "center", paddingVertical: 4 },
+  tab: {
     flexDirection: "row",
     alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: radii.pill,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  tabActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  tabText: { fontSize: 13, color: colors.textSecondary, fontWeight: "700" },
+  tabTextActive: { color: "#fff" },
+  tabCount: {
+    minWidth: 20,
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 999,
+    backgroundColor: colors.surfaceMuted,
+    alignItems: "center",
+  },
+  tabCountActive: { backgroundColor: "#fff" },
+  tabCountText: { fontSize: 10, color: colors.textSecondary, fontWeight: "800" },
+  gridCard: {
+    flex: 1,
     backgroundColor: colors.surface,
     borderRadius: radii.lg,
-    padding: 12,
-    marginBottom: 10,
+    overflow: "hidden",
+    marginBottom: 12,
     borderWidth: 1,
     borderColor: colors.borderLight,
-    gap: 10,
   },
-  cardLeft: { flexDirection: "row", alignItems: "center", flex: 1, gap: 12 },
-  thumb: { width: 60, height: 60, borderRadius: radii.md, backgroundColor: colors.surfaceMuted },
-  thumbPh: { alignItems: "center", justifyContent: "center" },
-  pName: { fontSize: 15, fontWeight: "800", color: colors.textPrimary },
-  catBadge: {
-    alignSelf: "flex-start",
-    backgroundColor: colors.surfaceMuted,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 999,
-    marginTop: 4,
+  gridImg: { width: "100%", aspectRatio: 1, backgroundColor: colors.surfaceMuted },
+  imgPh: { alignItems: "center", justifyContent: "center" },
+  expandIcon: {
+    position: "absolute",
+    top: 8,
+    right: 8,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    alignItems: "center",
+    justifyContent: "center",
   },
-  catBadgeText: { fontSize: 11, color: colors.textSecondary, fontWeight: "700" },
-  delBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    backgroundColor: "#FEF2F2",
+  gridBody: { padding: 10 },
+  gridName: { fontSize: 14, fontWeight: "800", color: colors.textPrimary, minHeight: 36 },
+  gridActions: { flexDirection: "row", gap: 6, marginTop: 8 },
+  gridActionBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    backgroundColor: "#DBEAFE",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -397,7 +460,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   imagePicker: {
-    height: 160,
+    height: 200,
     borderRadius: radii.lg,
     borderWidth: 2,
     borderColor: colors.border,
@@ -410,35 +473,4 @@ const styles = StyleSheet.create({
   },
   imagePreview: { width: "100%", height: "100%" },
   imagePickText: { fontSize: 13, color: colors.textSecondary, fontWeight: "700", marginTop: 8 },
-  miniLabel: {
-    fontSize: 13,
-    fontWeight: "700",
-    color: colors.textSecondary,
-    marginBottom: 6,
-    marginLeft: 4,
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-  },
-  selectBox: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    minHeight: 54,
-    paddingHorizontal: 14,
-    backgroundColor: colors.surfaceMuted,
-    borderRadius: radii.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-    marginBottom: 14,
-  },
-  selectText: { fontSize: 16, color: colors.textPrimary, fontWeight: "600" },
-  catItem: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingVertical: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.borderLight,
-  },
-  catItemText: { fontSize: 15, color: colors.textPrimary, fontWeight: "600" },
 });
