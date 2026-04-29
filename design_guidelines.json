@@ -1,0 +1,144 @@
+{
+  "project_name": "Sausage Meat Distribution B2B App",
+  "platform": "Expo React Native (Mobile App)",
+  "theme": "LIGHT",
+  "archetype": "Archetype 4: Swiss & High-Contrast",
+  "brand_identity": {
+    "tone": "Professional, Trustworthy, Efficient, Objective",
+    "rationale": "As a serious B2B operations tool for field agents and warehouse staff in Uzbekistan, the design must prioritize clarity, speed of data entry (one-handed usage), and high readability outdoors. The 'Swiss & High-Contrast' archetype ensures operational efficiency without unnecessary decorative elements."
+  },
+  "colors": {
+    "primary": "#C81E1E",
+    "primary_description": "Deep Carmine Red - Nods to the meat/sausage product domain while acting as a clear, authoritative action color.",
+    "background": "#F8FAFC",
+    "surface": "#FFFFFF",
+    "text_primary": "#0F172A",
+    "text_secondary": "#475569",
+    "borders": "#E2E8F0",
+    "status": {
+      "new_yangi": "#3B82F6",
+      "preparing_tayyorlanmoqda": "#F59E0B",
+      "delivered_yetkazildi": "#10B981"
+    }
+  },
+  "typography": {
+    "heading_font": "Outfit",
+    "body_font": "Manrope",
+    "rules": {
+      "h1": "text-3xl font-black tracking-tighter text-slate-900",
+      "h2": "text-2xl font-bold tracking-tight text-slate-900",
+      "h3": "text-xl font-semibold tracking-tight text-slate-800",
+      "body": "text-base font-medium leading-relaxed text-slate-700",
+      "labels_overlines": "text-xs font-bold uppercase tracking-[0.1em] text-slate-500",
+      "data_numbers": "text-lg font-bold font-mono tracking-tight text-slate-900"
+    }
+  },
+  "spacing_and_layout": {
+    "philosophy": "Mobile-first ergonomic density. Large touch targets for field agents operating one-handed, with generous spacing to avoid accidental taps.",
+    "touch_targets": "Minimum 48px height for all interactive elements (buttons, inputs).",
+    "screen_padding": "px-4 py-6 md:px-6",
+    "card_padding": "p-4 md:p-5",
+    "grid_system": "flex-col gap-4 (Standard mobile vertical stack). Use grid-cols-2 only for photo upload previews or split data stats.",
+    "radii": {
+      "buttons": "rounded-xl",
+      "cards": "rounded-2xl",
+      "inputs": "rounded-xl",
+      "bottom_sheet": "rounded-t-3xl"
+    }
+  },
+  "components": {
+    "buttons": {
+      "primary": "bg-[#C81E1E] text-white h-14 rounded-xl flex items-center justify-center font-bold text-lg active:opacity-80 shadow-md",
+      "secondary": "bg-slate-100 text-slate-900 border border-slate-200 h-14 rounded-xl flex items-center justify-center font-bold text-lg active:bg-slate-200",
+      "status_chip": "px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider"
+    },
+    "inputs": {
+      "text_field": "h-14 bg-white border border-slate-200 rounded-xl px-4 text-base text-slate-900 focus:border-[#C81E1E] focus:ring-1 focus:ring-[#C81E1E]/20",
+      "label": "text-sm font-semibold text-slate-700 mb-1.5 ml-1"
+    },
+    "cards": {
+      "order_card": "bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex flex-col gap-3 active:scale-[0.98] transition-transform",
+      "photo_upload": "h-32 border-2 border-dashed border-slate-300 rounded-xl bg-slate-50 flex flex-col items-center justify-center gap-2 active:bg-slate-100"
+    },
+    "navigation": {
+      "bottom_tab": "bg-white border-t border-slate-100 h-20 pb-safe pt-2 flex justify-around items-center shadow-[0_-4px_20px_rgba(0,0,0,0.02)]",
+      "header": "bg-white/90 backdrop-blur-md h-16 flex items-center justify-between px-4 border-b border-slate-100 sticky top-0 z-50"
+    }
+  },
+  "screens": {
+    "login_auth": {
+      "layout": "Vertical stack centered. Top half features abstract logistics background image with a gradient overlay. Bottom half is the clean white interaction area.",
+      "elements": [
+        "Brand Logo/Text ('SausageTrade Uz')",
+        "Phone Number Input (with +998 prefix fixed)",
+        "Primary CTA: 'Kodni olish' (Get Code)",
+        "OTP Input (4-6 digits, large mono font)",
+        "Verify CTA: 'Tasdiqlash' (Verify)"
+      ]
+    },
+    "agent_dashboard": {
+      "layout": "List view with a sticky header and prominent floating action button (FAB) or top-level CTA.",
+      "elements": [
+        "Header: Welcome back [Agent Name], Current Date",
+        "Action: Massive 'Yangi Zakaz' (New Order) button at the top or as FAB",
+        "List: 'Mening Zakazlarim' (My Orders) sorted by newest.",
+        "Order Items: Client name, status chip, location preview, total items."
+      ]
+    },
+    "agent_order_creation": {
+      "layout": "Scrollable form with clear sectional dividers.",
+      "elements": [
+        "Section 1: Mijoz (Client) - Phone number, Name",
+        "Section 2: Manzil (Location) - Read-only Map preview block (auto-detected GPS), raw text address input.",
+        "Section 3: Maxsulot (Product) - Category Select (Shadcn-style bottom sheet or picker), Product Name.",
+        "Section 4: Rasmlar (Photos) - 2 slotted dotted boxes for camera/gallery upload.",
+        "Bottom Sticky CTA: 'Zakazni Yuborish' (Send Order)"
+      ]
+    },
+    "warehouse_dashboard": {
+      "layout": "Dense operational list. Prioritizes quick scanning of what needs to be prepared.",
+      "elements": [
+        "Header: Ombor (Warehouse) Overview",
+        "Filter Tabs: Yangi (New) | Tayyorlanmoqda (Preparing) | Yetkazildi (Delivered)",
+        "Order Cards: Must prominently feature the Product name, Category, and photos thumbnail. Big tap targets to change status."
+      ]
+    },
+    "admin_dashboard": {
+      "layout": "Grid-based bento layout for analytics, followed by list management.",
+      "elements": [
+        "Stats Grid: Total Orders today, Active Agents, Top Products.",
+        "Management Links: Agentlarni boshqarish (Manage Agents), Kategoriyalar (Categories).",
+        "Global Order Feed."
+      ]
+    }
+  },
+  "media": {
+    "login_background": {
+      "url": "https://images.pexels.com/photos/5860937/pexels-photo-5860937.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+      "description": "Clean, organized warehouse aisles, used at 20% opacity as a login screen backdrop."
+    },
+    "product_placeholders": [
+      {
+        "url": "https://images.pexels.com/photos/27595859/pexels-photo-27595859.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+        "description": "High quality sausage/meat display"
+      },
+      {
+        "url": "https://images.pexels.com/photos/37256489/pexels-photo-37256489.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+        "description": "Cured sausages hanging in workshop"
+      }
+    ]
+  },
+  "accessibility_and_interactions": {
+    "test_ids": "All buttons, inputs, and navigation items MUST have a data-testid attribute (e.g., data-testid='submit-order-button').",
+    "haptic_feedback": "Use React Native haptics for order submission success, status changes, and photo uploads.",
+    "keyboard_handling": "Use KeyboardAvoidingView rigorously. The 'Zakazni Yuborish' button must remain visible or easily accessible above the keyboard."
+  },
+  "instructions_to_main_agent": [
+    "This is an EXPO REACT NATIVE app. Translate these web-centric Tailwind rules into NativeWind classes or React Native StyleSheet equivalents.",
+    "For the bottom navigation, use @react-navigation/bottom-tabs.",
+    "For icons, prefer phosphor-react-native or expo/vector-icons (Lucide/Feather).",
+    "Do not build standard web tables for Admin; use scrollable FlatLists with Card structures since this is a mobile interface.",
+    "Use standard Expo APIs for Location (expo-location) and Camera/Gallery (expo-image-picker).",
+    "All text must be in UZBEK as per the problem statement."
+  ]
+}
