@@ -41,6 +41,8 @@ export default function NewOrder() {
   const [categories, setCategories] = useState<Cat[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [productModal, setProductModal] = useState(false);
+  const [productSection, setProductSection] = useState(SECTIONS[0].key);
+  const [fsProductImage, setFsProductImage] = useState<string | undefined>();
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [catModal, setCatModal] = useState(false);
   const [selectedCat, setSelectedCat] = useState<Cat | null>(null);
