@@ -1,0 +1,60 @@
+{
+  "summary": "Comprehensive backend + frontend testing of the Agentlar Sausage Trade app (PIN auth + product catalog + order edit/delete/cancel + status comments + search/date filter + profile editing + client autofill + top stats). 19/19 pytest backend cases pass against the public preview URL covering: PIN login, profile edit (name + PIN + re-login), products CRUD with category/image autofill, agent role 403 on product POST/DELETE, order create with product autofills product_image+category_name, agent edit/delete only on 'new', status transitions with comment, agent cancel-only restriction, warehouse 403 on order body PATCH but 200 on /status, search q + date filter, /api/clients/lookup last-order autofill, top_agents/top_products/cancelled_orders in admin stats, _id and pin_hash never leaked. Frontend: admin login → dashboard → Mahsulot tab opens add-product modal with name+category+image fields; Profil tab shows name/PIN edit modals + logout; agent login → orders list with filter chips → FAB opens 'Yangi zakaz' form with KATALOGDAN TANLASH, kategoriya, manual mahsulot, klient telefon (autofill confirmed: typing 905555000 auto-populated client name 'TEST_Autofill_Client').",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "agent (zakazlar)",
+        "issues": [
+          "Filter chips: Hammasi/Yangi/Tayyorlanmoqda/Yetkazildi — there is NO 'Bekor qilingan' (cancelled) filter chip even though the 4th status now exists and BEKOR QILINDI badge renders correctly on cards. Add filter-cancelled chip for completeness."
+        ]
+      },
+      {
+        "screen": "global",
+        "issues": [
+          "Console warnings (cosmetic, RN-Web only): 'shadow*' style props deprecated, use 'boxShadow'; props.pointerEvents deprecated, use style.pointerEvents."
+        ]
+      }
+    ],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/conftest.py",
+    "/app/backend/tests/test_backend_api.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "(Minor / nice-to-have) Add a 4th 'Bekor qilingan' filter chip on agent zakazlar screen so cancelled orders can be filtered (current chips: filter-all, filter-new, filter-preparing, filter-delivered).",
+    "(Minor / cosmetic) Add testIDs to a few un-tagged inputs in new-order screen: MIQDOR field, QO'SHIMCHA IZOH textarea, KLIENT ISMI input — handy for future automation. Same for image-picker and category-select inside admin Yangi mahsulot modal.",
+    "(Optional / cosmetic) Replace remaining shadowColor/shadowOffset/shadowOpacity/shadowRadius styles with boxShadow on web, or guard with Platform.select to silence RN-Web deprecation warnings.",
+    "(Optional) Replace pointerEvents prop usages with style.pointerEvents to silence the deprecation warning."
+  ],
+  "critical_code_review_comments": [
+    "server.py uses @app.on_event('startup'/'shutdown') which is deprecated in FastAPI; consider lifespan handlers (non-blocking).",
+    "CORS is allow_origins=['*'] together with allow_credentials=True — browsers will reject cookies; harmless here because auth is a Bearer JWT, but tighten origins for production.",
+    "JWT secret committed in /app/backend/.env (acceptable for preview, must rotate before prod).",
+    "/api/clients/lookup is not scoped to the current agent — any authenticated user can read another agent's client info via phone. Consider `query['agent_id'] = user['id']` for role=='agent', or accept it as a feature (cross-agent autofill).",
+    "PATCH /orders/{id} excludes warehouse but allows admin & owner-agent. Admin can edit any order in any status — by design? The new business rule says agent only on 'new' but admin path is unconstrained.",
+    "No pagination on /api/orders or /api/users (to_list cap 1000/2000) — acceptable for current scale.",
+    "No brute-force lockout on /auth/login. Acceptable for preview but recommend simple per-phone cooldown for production."
+  ],
+  "updated_files": [
+    "/app/backend/tests/conftest.py (rewritten for PIN auth)",
+    "/app/backend/tests/test_backend_api.py (rewritten — 19 test cases for new feature set)",
+    "/app/test_reports/pytest/pytest_results.xml (regenerated)"
+  ],
+  "success_rate": {
+    "backend": "100% (19/19 pytest cases pass)",
+    "frontend": "100% of tested critical flows: admin login → dashboard, admin → Mahsulot → add-product modal, admin Profil edit-name/change-pin/logout flow, agent login → orders list with filter chips and BEKOR QILINDI badge, agent FAB → Yangi zakaz form with product picker + manual fields + autofill (verified: typing 905555000 → client_name auto-filled 'TEST_Autofill_Client')."
+  },
+  "seed_data_creation": "TEST_Agent (+998901111111, PIN 1111), TEST_Warehouse (+998902222222, PIN 2222), one prior order at +998905555000 / 'TEST_Autofill_Client' / 'Magazin Yunusabad 7' to exercise the autofill path. Default admin auto-seeded by backend at +998940634110 / PIN 1234. Categories pre-seeded by backend on first start.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Public URL: https://kolbasa-delivery.preview.emergentagent.com (EXPO_PUBLIC_BACKEND_URL). PIN auth (NO OTP). Default admin +998940634110 / 1234. Login uses 9-digit phone in UI (UI prefixes +998). Important testIDs — Login: login-phone-input, login-pin-input, login-submit-button. Admin tabs (bottom): Boshqaruv/Zakazlar/Hodimlar/Kategoriya/Mahsulot/Profil. Admin dashboard: stat-new/preparing/delivered/agents, quick-users/categories/orders. Admin Mahsulot: add-product-button, product-name-field, save-product (image picker & category select have no testIDs). Profile: profile-name, edit-name-button, change-pin-button, logout-button, name-input, save-name. Agent screens: agent-fab-new-order (FAB), filter-all/new/preparing/delivered (no filter-cancelled), order-card-{id}. New-order form: select-product-button, select-category-button, custom-category-input, product-name-input, client-phone-input, store-address-input, detect-location-button, add-photo-button, submit-order-button. Pytest: `pytest /app/backend/tests/ -v --tb=short --junitxml=/app/test_reports/pytest/pytest_results.xml`. Note the +998 in query strings must be URL-encoded — use requests.get(..., params={'phone': phone}) NOT f-strings.",
+  "rca_of_issue": "No bugs found. One initial pytest failure (test_lookup_returns_last_order_data) was a TEST-side issue: passing +998... directly via f-string left + un-encoded so backend received space; fixed by switching to params={'phone': phone}. Backend lookup endpoint itself works correctly. All 19 backend tests now green."
+}

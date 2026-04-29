@@ -24,10 +24,20 @@ import { api } from "../../src/api";
 import { colors, radii, shadows } from "../../src/theme";
 
 type Cat = { id: string; name: string };
+type Product = {
+  id: string;
+  name: string;
+  category_id?: string;
+  category_name?: string;
+  image?: string;
+};
 
 export default function NewOrder() {
   const router = useRouter();
   const [categories, setCategories] = useState<Cat[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [productModal, setProductModal] = useState(false);
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [catModal, setCatModal] = useState(false);
   const [selectedCat, setSelectedCat] = useState<Cat | null>(null);
   const [customCat, setCustomCat] = useState("");
@@ -45,7 +55,38 @@ export default function NewOrder() {
 
   useEffect(() => {
     api<Cat[]>("/categories").then(setCategories).catch(() => {});
+    api<Product[]>("/products").then(setProducts).catch(() => {});
   }, []);
+
+  // Client autofill: when phone is fully entered, look up last order
+  useEffect(() => {
+    if (clientPhoneDigits.length !== 9) return;
+    const phone = "+998" + clientPhoneDigits;
+    let cancelled = false;
+    api<any>(`/clients/lookup?phone=${encodeURIComponent(phone)}`)
+      .then((data) => {
+        if (cancelled || !data) return;
+        if (!clientName && data.client_name) setClientName(data.client_name);
+        if (!storeAddress && data.store_address) setStoreAddress(data.store_address);
+        if (latitude == null && data.latitude != null) setLatitude(data.latitude);
+        if (longitude == null && data.longitude != null) setLongitude(data.longitude);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clientPhoneDigits]);
+
+  const onPickProduct = (p: Product) => {
+    setSelectedProduct(p);
+    setProductName(p.name);
+    if (p.category_id) {
+      const c = categories.find((c) => c.id === p.category_id);
+      if (c) setSelectedCat(c);
+    }
+    setProductModal(false);
+  };
 
   const detectLocation = async () => {
     setLocating(true);
@@ -150,6 +191,7 @@ export default function NewOrder() {
       await api("/orders", {
         method: "POST",
         body: {
+          product_id: selectedProduct?.id,
           category_id: selectedCat?.id,
           category_name: selectedCat?.name,
           custom_category: customCat.trim() || null,
@@ -192,6 +234,29 @@ export default function NewOrder() {
           {/* --- Mahsulot --- */}
           <Text style={styles.section}>Mahsulot</Text>
           <View style={styles.card}>
+            <Text style={styles.miniLabel}>KATALOGDAN TANLASH</Text>
+            <TouchableOpacity
+              style={styles.selectBox}
+              onPress={() => setProductModal(true)}
+              testID="select-product-button"
+            >
+              {selectedProduct?.image ? (
+                <Image
+                  source={{ uri: selectedProduct.image }}
+                  style={{ width: 36, height: 36, borderRadius: 8, marginRight: 10 }}
+                />
+              ) : null}
+              <Text
+                style={[
+                  styles.selectText,
+                  { flex: 1 },
+                  !selectedProduct && { color: colors.textMuted },
+                ]}
+              >
+                {selectedProduct ? selectedProduct.name : "Mahsulotni katalogdan tanlash"}
+              </Text>
+              <Ionicons name="chevron-down" size={20} color={colors.textSecondary} />
+            </TouchableOpacity>
             <Text style={styles.miniLabel}>KATEGORIYA</Text>
             <TouchableOpacity
               style={styles.selectBox}
@@ -365,6 +430,62 @@ export default function NewOrder() {
           />
         </View>
       </Modal>
+
+      {/* Product modal */}
+      <Modal
+        visible={productModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setProductModal(false)}
+      >
+        <Pressable style={styles.modalBackdrop} onPress={() => setProductModal(false)} />
+        <View style={styles.modalSheet}>
+          <View style={styles.modalHandle} />
+          <Text style={styles.modalTitle}>Mahsulot tanlash</Text>
+          <ScrollView style={{ maxHeight: 460 }}>
+            {products.length === 0 ? (
+              <View style={{ paddingVertical: 24, alignItems: "center" }}>
+                <Text style={{ color: colors.textSecondary, textAlign: "center" }}>
+                  Katalog bo'sh. Mahsulot nomini qo'lda yozing yoki adminga murojaat qiling.
+                </Text>
+              </View>
+            ) : (
+              products.map((p) => (
+                <TouchableOpacity
+                  key={p.id}
+                  style={styles.prodItem}
+                  onPress={() => onPickProduct(p)}
+                >
+                  {p.image ? (
+                    <Image source={{ uri: p.image }} style={styles.prodImg} />
+                  ) : (
+                    <View style={[styles.prodImg, { alignItems: "center", justifyContent: "center" }]}>
+                      <Ionicons name="cube" size={20} color={colors.textMuted} />
+                    </View>
+                  )}
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.catItemText}>{p.name}</Text>
+                    {p.category_name ? (
+                      <Text style={{ fontSize: 12, color: colors.textSecondary }}>
+                        {p.category_name}
+                      </Text>
+                    ) : null}
+                  </View>
+                  {selectedProduct?.id === p.id ? (
+                    <Ionicons name="checkmark-circle" size={20} color={colors.primary} />
+                  ) : null}
+                </TouchableOpacity>
+              ))
+            )}
+          </ScrollView>
+          <Button
+            title="Yopish"
+            variant="secondary"
+            onPress={() => setProductModal(false)}
+            style={{ marginTop: 12 }}
+          />
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -508,4 +629,18 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.borderLight,
   },
   catItemText: { fontSize: 15, color: colors.textPrimary, fontWeight: "600" },
+  prodItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.borderLight,
+  },
+  prodImg: {
+    width: 48,
+    height: 48,
+    borderRadius: 10,
+    backgroundColor: colors.surfaceMuted,
+  },
 });

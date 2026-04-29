@@ -11,6 +11,7 @@ export type OrderItem = {
   category_name?: string;
   custom_category?: string;
   product_name: string;
+  product_image?: string;
   quantity?: string;
   client_phone: string;
   client_name?: string;
@@ -55,6 +56,9 @@ export function OrderCard({
       testID={testID}
     >
       <View style={styles.headerRow}>
+        {order.product_image ? (
+          <Image source={{ uri: order.product_image }} style={styles.thumb} />
+        ) : null}
         <View style={{ flex: 1 }}>
           <Text style={styles.product} numberOfLines={1}>
             {order.product_name}
@@ -113,7 +117,13 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.borderLight,
   },
-  headerRow: { flexDirection: "row", alignItems: "flex-start", gap: 10 },
+  headerRow: { flexDirection: "row", alignItems: "center", gap: 10 },
+  thumb: {
+    width: 44,
+    height: 44,
+    borderRadius: 10,
+    backgroundColor: colors.surfaceMuted,
+  },
   product: { fontSize: 16, fontWeight: "800", color: colors.textPrimary },
   cat: {
     fontSize: 12,

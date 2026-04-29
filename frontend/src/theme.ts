@@ -20,6 +20,7 @@ export const statusColors: Record<string, { bg: string; fg: string; label: strin
   new: { bg: "#DBEAFE", fg: "#1D4ED8", label: "Yangi" },
   preparing: { bg: "#FEF3C7", fg: "#B45309", label: "Tayyorlanmoqda" },
   delivered: { bg: "#D1FAE5", fg: "#047857", label: "Yetkazildi" },
+  cancelled: { bg: "#FEE2E2", fg: "#B91C1C", label: "Bekor qilindi" },
 };
 
 export const radii = {
