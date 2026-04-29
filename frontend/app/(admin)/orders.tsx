@@ -18,6 +18,7 @@ const STATUSES: { key: string; label: string }[] = [
   { key: "new", label: "Yangi" },
   { key: "preparing", label: "Tayyorlanmoqda" },
   { key: "delivered", label: "Yetkazildi" },
+  { key: "cancelled", label: "Bekor qilindi" },
 ];
 
 export default function AdminOrders() {
