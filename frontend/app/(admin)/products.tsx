@@ -31,7 +31,7 @@ type Product = {
   category_name?: string;
   image?: string;
   price?: number;
-  weight_grams?: number;
+  weight_options?: number[];
 };
 type Cat = { id: string; name: string };
 
@@ -43,7 +43,8 @@ export default function Products() {
   const [showForm, setShowForm] = useState(false);
   const [name, setName] = useState("");
   const [price, setPrice] = useState("");
-  const [grams, setGrams] = useState("");
+  const [weights, setWeights] = useState<number[]>([]);
+  const [weightInput, setWeightInput] = useState("");
   const [image, setImage] = useState<string | undefined>();
   const [saving, setSaving] = useState(false);
   const [fsImage, setFsImage] = useState<string | undefined>();
@@ -82,7 +83,8 @@ export default function Products() {
     setEditing(null);
     setName("");
     setPrice("");
-    setGrams("");
+    setWeights([]);
+    setWeightInput("");
     setImage(undefined);
   };
 
@@ -95,9 +97,25 @@ export default function Products() {
     setEditing(p);
     setName(p.name);
     setPrice(p.price != null ? String(p.price) : "");
-    setGrams(p.weight_grams != null ? String(p.weight_grams) : "");
+    setWeights(p.weight_options || []);
+    setWeightInput("");
     setImage(p.image);
     setShowForm(true);
+  };
+
+  const addWeight = () => {
+    const n = parseFloat(weightInput.replace(/[^\d.]/g, ""));
+    if (!n || n <= 0) return;
+    if (weights.includes(n)) {
+      setWeightInput("");
+      return;
+    }
+    setWeights([...weights, n].sort((a, b) => a - b));
+    setWeightInput("");
+  };
+
+  const removeWeight = (w: number) => {
+    setWeights(weights.filter((x) => x !== w));
   };
 
   const pickImage = () => {
@@ -151,7 +169,7 @@ export default function Products() {
         category_id: cat.id,
         image,
         price: price.trim() ? parseFloat(price.replace(/[^\d.]/g, "")) : null,
-        weight_grams: grams.trim() ? parseFloat(grams.replace(/[^\d.]/g, "")) : null,
+        weight_options: weights,
       };
       if (editing) {
         await api(`/products/${editing.id}`, { method: "PATCH", body });
@@ -263,20 +281,20 @@ export default function Products() {
               <Text style={styles.gridName} numberOfLines={2}>
                 {item.name}
               </Text>
-              {item.price != null || item.weight_grams != null ? (
+              {item.price != null || (item.weight_options && item.weight_options.length > 0) ? (
                 <View style={styles.priceRow}>
                   {item.price != null ? (
                     <Text style={styles.priceText}>
                       {item.price.toLocaleString("ru-RU")} so'm
                     </Text>
                   ) : null}
-                  {item.weight_grams != null ? (
-                    <Text style={styles.gramsText}>
-                      {item.weight_grams >= 1000
-                        ? `${item.weight_grams / 1000} kg`
-                        : `${item.weight_grams} g`}
-                    </Text>
-                  ) : null}
+                  {item.weight_options && item.weight_options.length > 0
+                    ? item.weight_options.map((w) => (
+                        <Text key={w} style={styles.gramsText}>
+                          {w >= 1000 ? `${w / 1000}kg` : `${w}g`}
+                        </Text>
+                      ))
+                    : null}
                 </View>
               ) : null}
               <View style={styles.gridActions}>
@@ -352,17 +370,48 @@ export default function Products() {
                   testID="product-price-field"
                 />
               </View>
+            </View>
+            <Text style={styles.miniLabel}>VAZN VARIANTLARI (gram)</Text>
+            <View style={styles.weightRow}>
               <View style={{ flex: 1 }}>
                 <Input
-                  label="Vazni (gram)"
-                  value={grams}
-                  onChangeText={(v) => setGrams(v.replace(/[^\d]/g, ""))}
+                  label=""
+                  value={weightInput}
+                  onChangeText={(v) => setWeightInput(v.replace(/[^\d]/g, ""))}
                   keyboardType="numeric"
-                  placeholder="500"
-                  testID="product-grams-field"
+                  placeholder="masalan: 500"
+                  onSubmitEditing={addWeight}
+                  testID="weight-input"
                 />
               </View>
+              <TouchableOpacity
+                onPress={addWeight}
+                style={styles.addWeightBtn}
+                testID="add-weight-button"
+              >
+                <Ionicons name="add" size={22} color="#fff" />
+              </TouchableOpacity>
             </View>
+            {weights.length > 0 ? (
+              <View style={styles.weightChips}>
+                {weights.map((w) => (
+                  <TouchableOpacity
+                    key={w}
+                    onPress={() => removeWeight(w)}
+                    style={styles.weightChip}
+                  >
+                    <Text style={styles.weightChipText}>
+                      {w >= 1000 ? `${w / 1000} kg` : `${w} g`}
+                    </Text>
+                    <Ionicons name="close-circle" size={16} color={colors.danger} />
+                  </TouchableOpacity>
+                ))}
+              </View>
+            ) : (
+              <Text style={styles.weightHint}>
+                Bir nechta vazn variantini qo'shing (masalan: 300, 500, 800)
+              </Text>
+            )}
             <View
               style={{
                 backgroundColor: colors.surfaceMuted,
@@ -546,4 +595,34 @@ const styles = StyleSheet.create({
   },
   imagePreview: { width: "100%", height: "100%" },
   imagePickText: { fontSize: 13, color: colors.textSecondary, fontWeight: "700", marginTop: 8 },
+  weightRow: { flexDirection: "row", alignItems: "flex-end", gap: 8, marginBottom: 8 },
+  addWeightBtn: {
+    width: 54,
+    height: 54,
+    borderRadius: radii.md,
+    backgroundColor: colors.primary,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 14,
+  },
+  weightChips: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 14 },
+  weightChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: "#FEF3C7",
+    borderWidth: 1,
+    borderColor: "#FDE68A",
+  },
+  weightChipText: { fontSize: 13, fontWeight: "800", color: "#92400E" },
+  weightHint: {
+    fontSize: 12,
+    color: colors.textMuted,
+    fontStyle: "italic",
+    marginBottom: 14,
+    marginLeft: 4,
+  },
 });

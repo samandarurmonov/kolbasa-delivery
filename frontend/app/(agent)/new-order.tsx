@@ -33,7 +33,7 @@ type Product = {
   category_name?: string;
   image?: string;
   price?: number;
-  weight_grams?: number;
+  weight_options?: number[];
 };
 
 export default function NewOrder() {
@@ -92,8 +92,18 @@ export default function NewOrder() {
       const c = categories.find((c) => c.id === p.category_id);
       if (c) setSelectedCat(c);
     }
+    // If product has weight options and quantity is empty, suggest first weight
+    if (p.weight_options && p.weight_options.length > 0 && !quantityValue) {
+      setQuantityValue(String(p.weight_options[0]));
+      setQuantityUnit("g");
+    }
     setProductModal(false);
   };
+
+  const productWeightChips =
+    selectedProduct?.weight_options && selectedProduct.weight_options.length > 0
+      ? selectedProduct.weight_options
+      : [];
 
   const filteredProducts = products.filter(
     (p) => (p.category_name || "") === productSection
@@ -301,6 +311,31 @@ export default function NewOrder() {
               testID="product-name-input"
             />
             <Text style={styles.miniLabel}>MIQDOR / VAZN</Text>
+            {productWeightChips.length > 0 ? (
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 8 }}>
+                {productWeightChips.map((w) => (
+                  <TouchableOpacity
+                    key={w}
+                    onPress={() => {
+                      setQuantityValue(String(w));
+                      setQuantityUnit("g");
+                    }}
+                    style={[
+                      styles.unitChip,
+                      { paddingHorizontal: 14, minHeight: 38 },
+                      quantityValue === String(w) && quantityUnit === "g" && styles.unitChipActive,
+                    ]}
+                  >
+                    <Text style={[
+                      styles.unitText,
+                      quantityValue === String(w) && quantityUnit === "g" && styles.unitTextActive,
+                    ]}>
+                      {w >= 1000 ? `${w / 1000} kg` : `${w} g`}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            ) : null}
             <View style={{ flexDirection: "row", gap: 8, marginBottom: 14 }}>
               <View style={{ flex: 1 }}>
                 <Input
@@ -548,19 +583,24 @@ export default function NewOrder() {
                           {p.price.toLocaleString("ru-RU")} so'm
                         </Text>
                       ) : null}
-                      {p.weight_grams != null ? (
-                        <Text style={{
-                          fontSize: 11,
-                          fontWeight: "700",
-                          color: colors.textSecondary,
-                          backgroundColor: colors.surfaceMuted,
-                          paddingHorizontal: 6,
-                          paddingVertical: 1,
-                          borderRadius: 999,
-                        }}>
-                          {p.weight_grams >= 1000 ? `${p.weight_grams / 1000} kg` : `${p.weight_grams} g`}
-                        </Text>
-                      ) : null}
+                      {p.weight_options && p.weight_options.length > 0
+                        ? p.weight_options.map((w) => (
+                            <Text
+                              key={w}
+                              style={{
+                                fontSize: 11,
+                                fontWeight: "700",
+                                color: "#92400E",
+                                backgroundColor: "#FEF3C7",
+                                paddingHorizontal: 6,
+                                paddingVertical: 1,
+                                borderRadius: 999,
+                              }}
+                            >
+                              {w >= 1000 ? `${w / 1000}kg` : `${w}g`}
+                            </Text>
+                          ))
+                        : null}
                       {p.category_name ? (
                         <Text style={{ fontSize: 11, color: colors.textMuted }}>
                           · {p.category_name}
