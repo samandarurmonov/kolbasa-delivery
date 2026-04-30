@@ -179,6 +179,11 @@ export default function NewOrder() {
 
   const addPhoto = () => {
     if (photos.length >= 2) return;
+    if (Platform.OS === "web") {
+      // Alert buttons don't work reliably on web — go straight to gallery
+      pickFromGallery();
+      return;
+    }
     Alert.alert("Foto qo'shish", "Manbani tanlang", [
       { text: "Kamera", onPress: takePhoto },
       { text: "Galereya", onPress: pickFromGallery },

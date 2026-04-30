@@ -118,41 +118,72 @@ export default function Products() {
     setWeights(weights.filter((x) => x !== w));
   };
 
+  const pickFromGallery = async () => {
+    try {
+      if (Platform.OS !== "web") {
+        const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (status !== "granted") return Alert.alert("Ruxsat berilmadi");
+      }
+      const r = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ["images"],
+        base64: true,
+        quality: 0.6,
+        // allowsEditing/aspect don't work reliably on web — skip there
+        ...(Platform.OS !== "web" ? { allowsEditing: true, aspect: [1, 1] as [number, number] } : {}),
+      });
+      if (!r.canceled && r.assets && r.assets[0]) {
+        const a = r.assets[0];
+        if (a.base64) {
+          setImage(`data:image/jpeg;base64,${a.base64}`);
+        } else if (a.uri && a.uri.startsWith("data:")) {
+          setImage(a.uri);
+        } else if (a.uri) {
+          // Fallback: fetch and convert to base64 (web blob URIs)
+          try {
+            const resp = await fetch(a.uri);
+            const blob = await resp.blob();
+            const reader = new FileReader();
+            reader.onloadend = () => {
+              if (typeof reader.result === "string") setImage(reader.result);
+            };
+            reader.readAsDataURL(blob);
+          } catch {
+            Alert.alert("Xatolik", "Rasmni o'qib bo'lmadi");
+          }
+        }
+      }
+    } catch (e: any) {
+      Alert.alert("Xatolik", e?.message || "Rasm tanlashda xatolik");
+    }
+  };
+
+  const takeFromCamera = async () => {
+    try {
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== "granted") return Alert.alert("Ruxsat berilmadi");
+      const r = await ImagePicker.launchCameraAsync({
+        base64: true,
+        quality: 0.6,
+        allowsEditing: true,
+        aspect: [1, 1],
+      });
+      if (!r.canceled && r.assets[0]?.base64) {
+        setImage(`data:image/jpeg;base64,${r.assets[0].base64}`);
+      }
+    } catch (e: any) {
+      Alert.alert("Xatolik", e?.message || "Kamera xatosi");
+    }
+  };
+
   const pickImage = () => {
+    if (Platform.OS === "web") {
+      // Alert buttons don't work reliably on web — go straight to gallery
+      pickFromGallery();
+      return;
+    }
     Alert.alert("Rasm tanlash", "Manbani tanlang", [
-      {
-        text: "Kamera",
-        onPress: async () => {
-          const { status } = await ImagePicker.requestCameraPermissionsAsync();
-          if (status !== "granted") return Alert.alert("Ruxsat berilmadi");
-          const r = await ImagePicker.launchCameraAsync({
-            base64: true,
-            quality: 0.6,
-            allowsEditing: true,
-            aspect: [1, 1],
-          });
-          if (!r.canceled && r.assets[0]?.base64) {
-            setImage(`data:image/jpeg;base64,${r.assets[0].base64}`);
-          }
-        },
-      },
-      {
-        text: "Galereya",
-        onPress: async () => {
-          const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-          if (status !== "granted") return Alert.alert("Ruxsat berilmadi");
-          const r = await ImagePicker.launchImageLibraryAsync({
-            mediaTypes: ["images"],
-            base64: true,
-            quality: 0.6,
-            allowsEditing: true,
-            aspect: [1, 1],
-          });
-          if (!r.canceled && r.assets[0]?.base64) {
-            setImage(`data:image/jpeg;base64,${r.assets[0].base64}`);
-          }
-        },
-      },
+      { text: "Kamera", onPress: takeFromCamera },
+      { text: "Galereya", onPress: pickFromGallery },
       { text: "Bekor qilish", style: "cancel" },
     ]);
   };
