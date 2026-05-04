@@ -35,18 +35,19 @@ export default function Profile() {
   const [pinConfirm, setPinConfirm] = useState("");
   const [saving, setSaving] = useState(false);
 
+  const [confirmLogout, setConfirmLogout] = useState(false);
+
+  const doLogout = async () => {
+    try {
+      await signOut();
+    } finally {
+      setConfirmLogout(false);
+      router.replace("/login");
+    }
+  };
+
   const onLogout = () => {
-    Alert.alert("Chiqish", "Akkauntdan chiqishni xohlaysizmi?", [
-      { text: "Bekor qilish", style: "cancel" },
-      {
-        text: "Chiqish",
-        style: "destructive",
-        onPress: async () => {
-          await signOut();
-          router.replace("/login");
-        },
-      },
-    ]);
+    setConfirmLogout(true);
   };
 
   const onSaveName = async () => {
@@ -215,6 +216,46 @@ export default function Profile() {
           />
         </KeyboardAvoidingView>
       </Modal>
+
+      {/* Logout confirmation modal */}
+      <Modal
+        visible={confirmLogout}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setConfirmLogout(false)}
+      >
+        <Pressable
+          style={styles.confirmBackdrop}
+          onPress={() => setConfirmLogout(false)}
+        />
+        <View style={styles.confirmWrap} pointerEvents="box-none">
+          <View style={styles.confirmCard}>
+            <View style={styles.confirmIcon}>
+              <Ionicons name="log-out-outline" size={28} color={colors.danger} />
+            </View>
+            <Text style={styles.confirmTitle}>Akkauntdan chiqish</Text>
+            <Text style={styles.confirmMsg}>
+              Haqiqatan ham tizimdan chiqmoqchimisiz?
+            </Text>
+            <View style={styles.confirmActions}>
+              <TouchableOpacity
+                style={[styles.confirmBtn, styles.confirmCancel]}
+                onPress={() => setConfirmLogout(false)}
+                testID="logout-cancel"
+              >
+                <Text style={styles.confirmCancelText}>Bekor qilish</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.confirmBtn, styles.confirmDanger]}
+                onPress={doLogout}
+                testID="logout-confirm"
+              >
+                <Text style={styles.confirmDangerText}>Chiqish</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -320,5 +361,76 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: colors.textSecondary,
     lineHeight: 19,
+  },
+  confirmBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.45)",
+  },
+  confirmWrap: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 24,
+  },
+  confirmCard: {
+    width: "100%",
+    maxWidth: 360,
+    backgroundColor: colors.surface,
+    borderRadius: radii.xl,
+    padding: 24,
+    alignItems: "center",
+  },
+  confirmIcon: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: "#FEE2E2",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 14,
+  },
+  confirmTitle: {
+    fontSize: 18,
+    fontWeight: "900",
+    color: colors.textPrimary,
+    marginBottom: 6,
+    textAlign: "center",
+  },
+  confirmMsg: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    textAlign: "center",
+    marginBottom: 20,
+    lineHeight: 20,
+  },
+  confirmActions: {
+    flexDirection: "row",
+    gap: 10,
+    width: "100%",
+  },
+  confirmBtn: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: radii.md,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  confirmCancel: {
+    backgroundColor: colors.surfaceMuted,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  confirmCancelText: {
+    color: colors.textPrimary,
+    fontWeight: "800",
+    fontSize: 14,
+  },
+  confirmDanger: {
+    backgroundColor: colors.danger,
+  },
+  confirmDangerText: {
+    color: "#fff",
+    fontWeight: "900",
+    fontSize: 14,
   },
 });
