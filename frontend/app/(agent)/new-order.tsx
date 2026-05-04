@@ -59,6 +59,8 @@ export default function NewOrder() {
   const [photos, setPhotos] = useState<string[]>([]);
   const [locating, setLocating] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
   useEffect(() => {
     api<Cat[]>("/categories").then(setCategories).catch(() => {});
@@ -110,33 +112,42 @@ export default function NewOrder() {
   );
 
   const detectLocation = async () => {
+    setErrorMsg(null);
     setLocating(true);
     try {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== "granted") {
-        Alert.alert("Ruxsat berilmadi", "Lokatsiyaga ruxsat bering");
-        return;
+      // On web, getCurrentPosition uses browser geolocation API
+      if (Platform.OS !== "web") {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== "granted") {
+          setErrorMsg("Lokatsiyaga ruxsat bering");
+          return;
+        }
       }
       const loc = await Location.getCurrentPositionAsync({});
       setLatitude(loc.coords.latitude);
       setLongitude(loc.coords.longitude);
       try {
-        const places = await Location.reverseGeocodeAsync({
-          latitude: loc.coords.latitude,
-          longitude: loc.coords.longitude,
-        });
-        if (places && places.length > 0) {
-          const p = places[0];
-          const addr = [p.street, p.name, p.city || p.subregion, p.region]
-            .filter(Boolean)
-            .join(", ");
-          if (addr && !storeAddress) setStoreAddress(addr);
+        if (Platform.OS !== "web") {
+          const places = await Location.reverseGeocodeAsync({
+            latitude: loc.coords.latitude,
+            longitude: loc.coords.longitude,
+          });
+          if (places && places.length > 0) {
+            const p = places[0];
+            const addr = [p.street, p.name, p.city || p.subregion, p.region]
+              .filter(Boolean)
+              .join(", ");
+            if (addr && !storeAddress) setStoreAddress(addr);
+          }
         }
       } catch {
         // reverse geocode optional
       }
     } catch (e: any) {
-      Alert.alert("Xatolik", e?.message || "Lokatsiyani aniqlashda xatolik");
+      setErrorMsg(
+        e?.message ||
+          "Lokatsiya aniqlanmadi. Brauzerdan ruxsat bering yoki manzilni qo'lda kiriting."
+      );
     } finally {
       setLocating(false);
     }
@@ -144,19 +155,44 @@ export default function NewOrder() {
 
   const pickFromGallery = async () => {
     if (photos.length >= 2) return;
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== "granted") {
-      Alert.alert("Ruxsat berilmadi", "Galereyaga ruxsat bering");
-      return;
-    }
-    const r = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ["images"],
-      base64: true,
-      quality: 0.6,
-      allowsEditing: false,
-    });
-    if (!r.canceled && r.assets[0]?.base64) {
-      setPhotos((p) => [...p, `data:image/jpeg;base64,${r.assets[0].base64}`]);
+    try {
+      if (Platform.OS !== "web") {
+        const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (status !== "granted") {
+          setErrorMsg("Galereyaga ruxsat bering");
+          return;
+        }
+      }
+      const r = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ["images"],
+        base64: true,
+        quality: 0.6,
+        allowsEditing: false,
+      });
+      if (!r.canceled && r.assets && r.assets[0]) {
+        const a = r.assets[0];
+        if (a.base64) {
+          setPhotos((p) => [...p, `data:image/jpeg;base64,${a.base64}`]);
+        } else if (a.uri && a.uri.startsWith("data:")) {
+          setPhotos((p) => [...p, a.uri]);
+        } else if (a.uri) {
+          try {
+            const resp = await fetch(a.uri);
+            const blob = await resp.blob();
+            const reader = new FileReader();
+            reader.onloadend = () => {
+              if (typeof reader.result === "string") {
+                setPhotos((p) => [...p, reader.result as string]);
+              }
+            };
+            reader.readAsDataURL(blob);
+          } catch {
+            setErrorMsg("Rasmni o'qib bo'lmadi");
+          }
+        }
+      }
+    } catch (e: any) {
+      setErrorMsg(e?.message || "Rasm tanlashda xatolik");
     }
   };
 
@@ -196,20 +232,21 @@ export default function NewOrder() {
   };
 
   const submit = async () => {
+    setErrorMsg(null);
     if (!selectedCat && !customCat.trim()) {
-      Alert.alert("Xatolik", "Kategoriyani tanlang yoki kiriting");
+      setErrorMsg("Kategoriyani tanlang yoki kiriting");
       return;
     }
     if (!productName.trim()) {
-      Alert.alert("Xatolik", "Mahsulot nomini kiriting");
+      setErrorMsg("Mahsulot nomini kiriting");
       return;
     }
     if (clientPhoneDigits.length !== 9) {
-      Alert.alert("Xatolik", "Klient telefonini to'liq kiriting");
+      setErrorMsg("Klient telefonini to'liq kiriting (9 raqam)");
       return;
     }
     if (!storeAddress.trim()) {
-      Alert.alert("Xatolik", "Do'kon manzilini kiriting");
+      setErrorMsg("Do'kon manzilini kiriting");
       return;
     }
     setSubmitting(true);
@@ -234,11 +271,13 @@ export default function NewOrder() {
           photos,
         },
       });
-      Alert.alert("Muvaffaqiyatli", "Zakaz omborga yuborildi", [
-        { text: "OK", onPress: () => router.replace("/(agent)") },
-      ]);
+      setSuccessMsg("Zakaz omborga yuborildi ✓");
+      // Navigate back after short delay so user sees the feedback
+      setTimeout(() => {
+        router.replace("/(agent)");
+      }, 900);
     } catch (e: any) {
-      Alert.alert("Xatolik", e?.message || "Yuborilmadi");
+      setErrorMsg(e?.message || "Yuborishda xatolik. Internetni tekshiring va qayta urinib ko'ring.");
     } finally {
       setSubmitting(false);
     }
@@ -259,6 +298,21 @@ export default function NewOrder() {
         </View>
 
         <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
+          {errorMsg ? (
+            <View style={styles.bannerError} testID="error-banner">
+              <Ionicons name="alert-circle" size={18} color={colors.danger} />
+              <Text style={styles.bannerErrorText}>{errorMsg}</Text>
+              <TouchableOpacity onPress={() => setErrorMsg(null)} hitSlop={10}>
+                <Ionicons name="close" size={18} color={colors.danger} />
+              </TouchableOpacity>
+            </View>
+          ) : null}
+          {successMsg ? (
+            <View style={styles.bannerSuccess} testID="success-banner">
+              <Ionicons name="checkmark-circle" size={18} color="#047857" />
+              <Text style={styles.bannerSuccessText}>{successMsg}</Text>
+            </View>
+          ) : null}
           {/* --- Mahsulot --- */}
           <Text style={styles.section}>Mahsulot</Text>
           <View style={styles.card}>
@@ -824,4 +878,40 @@ const styles = StyleSheet.create({
   modSecTabActive: { backgroundColor: colors.primary, borderColor: colors.primary },
   modSecText: { fontSize: 12, fontWeight: "800", color: colors.textSecondary },
   modSecTextActive: { color: "#fff" },
+  bannerError: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "#FEF2F2",
+    borderWidth: 1,
+    borderColor: "#FECACA",
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: radii.md,
+    marginBottom: 12,
+  },
+  bannerErrorText: {
+    flex: 1,
+    fontSize: 13,
+    color: colors.danger,
+    fontWeight: "700",
+  },
+  bannerSuccess: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "#ECFDF5",
+    borderWidth: 1,
+    borderColor: "#A7F3D0",
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: radii.md,
+    marginBottom: 12,
+  },
+  bannerSuccessText: {
+    flex: 1,
+    fontSize: 13,
+    color: "#047857",
+    fontWeight: "800",
+  },
 });
